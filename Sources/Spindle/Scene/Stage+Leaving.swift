@@ -75,11 +75,7 @@ enum Keeping {
 
     private static func forgetLeftovers(of preset: ScenePreset) {
         switch preset {
-        case .afterHours: CafeScene.forgetLeftovers()
         case .rainyNewYork: CourtyardScene.forgetLeftovers()
-        case .garage: GarageScene.forgetLeftovers()
-        case .bedside: LoftScene.forgetLeftovers()
-        case .goldenNook: CoastalScene.forgetLeftovers()
         default: break
         }
     }

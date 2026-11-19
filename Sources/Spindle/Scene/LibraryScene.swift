@@ -41,7 +41,7 @@ enum LibraryScene {
                 return cup
             },
             {
-                let cup = CafeScene.cupAndSaucer(latte: 0, steam: 0.08)
+                let cup = cupAndSaucer(steam: 0.08)
                 cup.simdEulerAngles = SIMD3(0, deg(140), 0)
                 return cup
             },
@@ -871,9 +871,252 @@ enum LibraryScene {
             }
         }
     }
+
+    /// Where a cup's foot stands in the scanned saucer: the top of its well.
+    private static let saucerWell: Float = 0.0032
+
+    static func cupAndSaucer(steam: Float) -> SCNNode {
+        let node = SCNNode()
+        let china = usedChina()
+        // (The cup carries a dried drip down its side: see `stained`. A shade down and less glossy than the rest: it
+        // stood out brighter than everything round it, pasted in.)
+        let cupChina = stained(china, "drip")
+        cupChina.diffuse.contents = cleanCupPicture()
+        cupChina.multiply.contents = rgb(0.80, 0.78, 0.74)
+        cupChina.clearCoat.contents = 0.15
+        // (The saucer and its spoon stay on the table when the cup is picked up.)
+        let saucer = SCNNode()
+        saucer.name = "coaster"
+        saucer.adding(to: node)
+        // (A scanned saucer, from the same set as the sugar bowl and the teapot: a foot ring, a well, a rim with its own
+        // thickness and its rolled edge, and its worn grey band. Turned on a lathe here it read as a flat white disc.)
+        let scanned = ModelLibrary.node("tea_set_01", only: ["saucer_circular_04"], length: 0.152)
+        dullScan(["saucer_circular_04"])
+        scanned.simdEulerAngles = SIMD3(0, deg(40), 0)
+        scanned.adding(to: saucer).rests(1.4)
+        // (A china saucer on a table sits in a little shade of its own: without it, a bright disc that floats.)
+        // (The round shade's dark is the middle three fifths of its square: at the saucer's own size it lay wholly under
+        // it and nothing showed. This reaches a finger's width past the rim, darkest under it.)
+        let saucerShade = Props.contactShadow(width: 0.275, depth: 0.275, opacity: 1.9, round: true)
+        saucerShade.simdPosition.y = 0.0008
+        saucer.addChildNode(saucerShade)
+        let saucerRim = Props.contactShadow(width: 0.256, depth: 0.256, opacity: 2.0, round: true)
+        saucerRim.simdPosition.y = 0.0009
+        saucer.addChildNode(saucerRim)
+        // (The cup's foot stands in the scanned saucer's well, 4 mm lower than on the turned one.)
+        let body = SCNNode()
+        body.simdPosition.y = Self.saucerWell - 0.007
+        node.addChildNode(body)
+        // (And the cup's foot in the saucer's well: without it the cup sat on a flat white disc.)
+        let footShade = Props.contactShadow(width: 0.068, depth: 0.068, opacity: 1.8, round: true)
+        footShade.simdPosition.y = 0.0072
+        body.addChildNode(footShade)
+        let cup = Mesh.lathe(
+            profile: [
+                SIMD2(0, 0.007), SIMD2(0.024, 0.007), SIMD2(0.027, 0.011), SIMD2(0.040, 0.030), SIMD2(0.047, 0.058),
+                SIMD2(0.0485, 0.066), SIMD2(0.0455, 0.066),
+                SIMD2(0.043, 0.056), SIMD2(0.036, 0.031), SIMD2(0.022, 0.014), SIMD2(0, 0.012),
+            ], segments: 48, smoothAngle: 50)
+        SCNNode(cup, material: cupChina).adding(to: body)
+        // Handle, on the side away from the pattern's foot.
+        var loop: [SIMD3<Float>] = []
+        for k in 0...10 {
+            let a = Float(k) / 10 * .pi - .pi / 2
+            loop.append(SIMD3(0.044 + cos(a) * 0.020, 0.040 + sin(a) * 0.017, 0))
+        }
+        SCNNode(Mesh.tube(path: loop, radius: { _ in 0.0038 }, radialSegments: 8), material: china).adding(to: body)
+        let foam = Mat.pbr(rgb(0.7, 0.5, 0.3), roughness: 0.12)
+        foam.diffuse.contents = blackCoffee()
+        let coffee = SCNNode(Mesh.disc(radius: 0.0445, segments: 40), material: foam)
+        coffee.name = "liquid.cafe"
+        coffee.at(0, 0.0605, 0).adding(to: body)
+        // Where the coffee meets the cup it climbs it a little: a lip of foam (or crema) round the edge, catching the light.
+        let lip = Mat.pbr(rgb(0.20, 0.11, 0.05), roughness: 0.5)
+        let meniscus = SCNNode(SCNTorus(ringRadius: 0.0438, pipeRadius: 0.0016), material: lip)
+        meniscus.simdScale = SIMD3(1, 0.7, 1)
+        meniscus.castsShadow = false
+        meniscus.at(0, 0.0004, 0).adding(to: coffee)
+        // Teaspoon on the saucer.
+        let steel = Props.brushedFinish(Mat.pbr(rgb(0.78, 0.78, 0.80), roughness: 0.25, metalness: 1), roughness: 0.25)
+        let spoon = SCNNode()
+        SCNNode(
+            Mesh.tube(
+                path: [SIMD3(0, 0.002, 0), SIMD3(0.045, 0.0035, 0), SIMD3(0.085, 0.002, 0)],
+                radius: { t in 0.0016 + 0.0008 * t }, radialSegments: 6), material: steel
+        ).adding(to: spoon)
+        let bowl = SCNNode(SCNSphere(radius: 0.010), material: steel)
+        bowl.simdScale = SIMD3(1.35, 0.28, 0.9)
+        bowl.at(-0.010, 0.002, 0).adding(to: spoon)
+        spoon.simdEulerAngles = SIMD3(0, deg(62), deg(4))
+        spoon.simdScale = SIMD3(repeating: 0.88)
+        spoon.at(-0.024, 0.0105, 0.042).adding(to: saucer)
+        if steam > 0 { Props.steam(amount: steam).at(0, 0.064, 0).adding(to: body) }
+        return node
+    }
+
+    private static func blackCoffee() -> CGImage {
+        Mat.cached("cafe.black.coffee") {
+            Tex.draw(width: 256, height: 256) { ctx, rect in
+                let tones =
+                    [Tex.rgb(0.035, 0.020, 0.012), Tex.rgb(0.05, 0.028, 0.015), Tex.rgb(0.30, 0.17, 0.08)] as CFArray
+                if let gradient = CGGradient(
+                    colorsSpace: CGColorSpace(name: CGColorSpace.sRGB)!, colors: tones, locations: [0, 0.82, 1])
+                {
+                    ctx.drawRadialGradient(
+                        gradient, startCenter: CGPoint(x: 128, y: 128), startRadius: 0,
+                        endCenter: CGPoint(x: 128, y: 128), endRadius: 128, options: [.drawsAfterEndLocation])
+                }
+            }
+        }
+    }
+
+    /// China that has been through the café's dishwasher ten thousand times: a warm off-white, a faint craze in the
+    /// glaze, a tea stain where the lip is, specks in the body.
+    private static func usedChina(tint: NSColor = rgb(0.82, 0.80, 0.75)) -> SCNMaterial {
+        let china = Mat.pbr(tint, roughness: 0.22)
+        china.diffuse.contents = Mat.cached("cafe.china.used.2") {
+            Tex.draw(width: 512, height: 512) { ctx, rect in
+                ctx.setFillColor(Tex.gray(1))
+                ctx.fill(rect)
+                var rng = SeededRandom(seed: 1321)
+                for _ in 0..<900 {
+                    let r = rng.range(0.4, 1.4)
+                    ctx.setFillColor(Tex.rgb(0.45, 0.40, 0.34, rng.range(0.10, 0.35)))
+                    ctx.fillEllipse(in: CGRect(x: rng.range(0, 512), y: rng.range(0, 512), width: r * 2, height: r * 2))
+                }
+                ctx.setLineCap(.round)
+                for _ in 0..<190 {  // crazing, with years of tea and coffee got into it
+                    var p = CGPoint(x: rng.range(0, 512), y: rng.range(0, 512))
+                    ctx.setStrokeColor(Tex.rgb(0.50, 0.42, 0.32, rng.range(0.16, 0.34)))
+                    ctx.setLineWidth(rng.range(0.6, 1.1))
+                    ctx.move(to: p)
+                    for _ in 0..<4 {
+                        p.x += rng.range(-18, 18)
+                        p.y += rng.range(-18, 18)
+                        ctx.addLine(to: p)
+                    }
+                    ctx.strokePath()
+                }
+                for _ in 0..<5 {  // stains
+                    let r = rng.range(20, 60)
+                    ctx.setFillColor(Tex.rgb(0.70, 0.55, 0.36, rng.range(0.05, 0.10)))
+                    ctx.fillEllipse(in: CGRect(x: rng.range(0, 512), y: rng.range(0, 512), width: r * 2.2, height: r))
+                }
+                // Chips out of the rim (half way along the plates' and saucers' profiles), the grey body showing where
+                // the glaze has gone, darker in the break; and the grey of cutlery dragged across the face.
+                for _ in 0..<9 {
+                    let w = rng.range(5, 14)
+                    let x = rng.range(0, 512)
+                    let y = rng.range(247, 262)
+                    ctx.setFillColor(Tex.rgb(0.66, 0.62, 0.56, 0.95))
+                    ctx.fillEllipse(in: CGRect(x: x, y: y, width: w, height: w * 0.6))
+                    ctx.setFillColor(Tex.rgb(0.42, 0.37, 0.31, 0.7))
+                    ctx.fillEllipse(in: CGRect(x: x + w * 0.25, y: y + w * 0.12, width: w * 0.45, height: w * 0.3))
+                }
+                for _ in 0..<40 {
+                    let p = CGPoint(x: rng.range(0, 512), y: rng.range(150, 245))
+                    let a = rng.range(0, 6.28)
+                    let l = rng.range(6, 26)
+                    ctx.setStrokeColor(Tex.rgb(0.45, 0.45, 0.46, rng.range(0.10, 0.25)))
+                    ctx.setLineWidth(0.7)
+                    ctx.move(to: p)
+                    ctx.addLine(to: CGPoint(x: p.x + cos(a) * l, y: p.y + sin(a) * l))
+                    ctx.strokePath()
+                }
+            }
+        }
+        china.multiply.contents = tint
+        china.roughness.contents = Mat.cached("cafe.china.sheen") {
+            Tex.blur(Tex.noise(size: 128, seed: 1323, low: 0.14, high: 0.34), radius: 3)
+        }
+        china.clearCoat.contents = 0.35
+        china.clearCoatRoughness.contents = 0.22
+        return china
+    }
+
+    /// The china's marks, as one more layer over its own: a dried drip down the cup from its lip, or a coffee ring round
+    /// the saucer's well. (On the lathe's coordinates: round it across, up the profile from the bottom of the outside.)
+    private static func stained(_ china: SCNMaterial, _ kind: String) -> SCNMaterial {
+        guard let marked = china.copy() as? SCNMaterial else { return china }
+        let base = china.diffuse.contents.map { $0 as CFTypeRef }
+        marked.diffuse.contents = Mat.cached("cafe.china.3.\(kind)") {
+            Tex.draw(width: 512, height: 512) { ctx, rect in
+                if let base, CFGetTypeID(base) == CGImage.typeID {
+                    ctx.draw(base as! CGImage, in: rect)  // swiftlint:disable:this force_cast
+                }
+                ctx.setLineCap(.round)
+                if kind == "drip" {
+                    // (The lip is half way along the profile; the outside runs down from it to the foot.)
+                    // (A dried run is a faint tan stain that widens a little as it goes down, never a line with a dot.)
+                    for (u, long) in [(CGFloat(0.22), CGFloat(0.10))] {
+                        for k in 0..<14 {
+                            let t = CGFloat(k) / 13
+                            ctx.setFillColor(Tex.rgb(0.55, 0.36, 0.18, 0.10 + 0.06 * t))
+                            ctx.fillEllipse(
+                                in: CGRect(
+                                    x: u * 512 - 4 - 2 * t, y: (0.50 + long * t) * 512 - 4, width: 8 + 4 * t, height: 10))
+                        }
+                    }
+                } else {
+                    // The ring, round the well, never quite closed, and thicker on one side.
+                    for k in 0..<64 {
+                        let u = CGFloat(k) / 64
+                        ctx.setFillColor(Tex.rgb(0.46, 0.28, 0.12, 0.25 + 0.35 * abs(sin(u * 5.1))))
+                        ctx.fill(CGRect(x: u * 512, y: 0.235 * 512, width: 9, height: 7 + 6 * abs(sin(u * 3))))
+                    }
+                }
+            }
+        }
+        return marked
+    }
+
+    private static func dullScan(_ parts: [String]) {
+        for material in ModelLibrary.materials("tea_set_01", only: parts) {
+            guard (material.value(forKey: "cafeUsed") as? Bool) != true else { continue }
+            material.setValue(true, forKey: "cafeUsed")
+            material.multiply.contents = rgb(0.80, 0.78, 0.74)
+        }
+    }
+
+    /// The white cup's glaze: clean but for a faint craze and a few fine specks (the shared china's chips and cutlery
+    /// marks, on the cup's side seen straight on, read as two eyes and a mouth).
+    private static func cleanCupPicture() -> CGImage {
+        Mat.cached("cafe.china.cup.clean.1") {
+            Tex.draw(width: 512, height: 512) { ctx, rect in
+                ctx.setFillColor(Tex.gray(1))
+                ctx.fill(rect)
+                var rng = SeededRandom(seed: 1461)
+                for _ in 0..<500 {
+                    let r = rng.range(0.4, 1.0)
+                    ctx.setFillColor(Tex.rgb(0.55, 0.50, 0.44, rng.range(0.06, 0.16)))
+                    ctx.fillEllipse(in: CGRect(x: rng.range(0, 512), y: rng.range(0, 512), width: r * 2, height: r * 2))
+                }
+                ctx.setLineCap(.round)
+                for _ in 0..<120 {
+                    var p = CGPoint(x: rng.range(0, 512), y: rng.range(0, 512))
+                    ctx.setStrokeColor(Tex.rgb(0.60, 0.52, 0.42, rng.range(0.05, 0.12)))
+                    ctx.setLineWidth(0.6)
+                    ctx.move(to: p)
+                    for _ in 0..<3 {
+                        p.x += rng.range(-14, 14)
+                        p.y += rng.range(-14, 14)
+                        ctx.addLine(to: p)
+                    }
+                    ctx.strokePath()
+                }
+                // The dried run from the lip, faint.
+                for k in 0..<14 {
+                    let t = CGFloat(k) / 13
+                    ctx.setFillColor(Tex.rgb(0.62, 0.46, 0.28, 0.06 + 0.04 * t))
+                    ctx.fillEllipse(
+                        in: CGRect(x: 0.22 * 512 - 4 - 2 * t, y: (0.50 + 0.10 * t) * 512 - 4, width: 8 + 4 * t, height: 10))
+                }
+            }
+        }
+    }
 }
 
-/// What years on a desk and a shelf do to books, for the Library and the Fireside.
+/// What years on a desk and a shelf do to books, for the Library.
 enum Lived {
     /// Pale cloth a shade down and greyed, and no ribbon markers sticking out stiff into the air.
     static func ageBooks(_ books: SCNNode) {

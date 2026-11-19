@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 // The menu bar's drop-down itself: its header, player card, tiles and switches. The cards that open out of them are in
-// MenuBarView+Cards.swift and MenuBarView+Friends.swift, the pieces they are made of in MenuBarPieces.swift, and the
+// MenuBarView+Cards.swift, the pieces they are made of in MenuBarPieces.swift, and the
 // status item and the window it all hangs in in MenuBarController.swift.
 
 struct MenuBarView: View {
@@ -11,40 +11,9 @@ struct MenuBarView: View {
     @ObservedObject var settings: Settings
     var actions: MenuBarActions
     var sample: MenuBarSample? = nil
-    /// (Pictures taken off screen: which of the friends' card's pages to show.)
-    var startPage: FriendsPage = .list
-    /// (Pictures taken off screen: the inbox card with its letter open.)
-    var startLetter = false
-    @ObservedObject var collection = Collection.shared
-    @ObservedObject var updater = Updater.shared
-    @ObservedObject var account = AccountStore.shared
-    @ObservedObject var inbox = Inbox.shared
-    /// A letter being read in the inbox card, and how tall the card is, as last measured.
-    @State var inboxReading = false
-    @State var inboxMeasured: CGFloat = 80
     @ObservedObject var thumbnails = SceneThumbnails.shared
     /// The tile under the pointer.
     @State var hovered: MenuBarPick?
-    @Namespace var recordSpace
-    /// "Up to date!", for a moment after asking.
-    @State var upToDate = false
-    /// The friends' card: its page, a code being typed, and what it last had to say.
-    @State var friendsPage: FriendsPage = .list
-    @State var friendDraft = ""
-    @State var friendTurnedDown = 0
-    @State var friendWorking = false
-    @State var friendNote: String?
-    @State var friendNoteWarns = false
-    @State var renewing = false
-    @State var removing = false
-    @State var answering: Int?
-    /// How tall the friends' card's page is, as last measured, and which way it last slid.
-    @State var friendsMeasured: CGFloat = 300
-    @State var friendsBackwards = false
-    /// A film being made (how many seconds of it so far), and how the last picture and film went, for a moment.
-    @State var filming: Double?
-    @State var filmed: Bool?
-    @State var pictured: Bool?
 
     var track: Track? { sample.map { $0.track } ?? model.track }
     var art: AlbumArt { sample?.art ?? model.art }
@@ -79,23 +48,6 @@ struct MenuBarView: View {
         .background(Color.black.opacity(0.001).onTapGesture { actions.close() })
         .animation(.easeInOut(duration: 0.8), value: art.id)
         .environment(\.colorScheme, .dark)
-        .id(settings.language)
-        .onReceive(NotificationCenter.default.publisher(for: Recorder.ticked)) { note in
-            filming = note.object as? Double
-        }
-        .onReceive(NotificationCenter.default.publisher(for: Recorder.finished)) { note in
-            filming = nil
-            withAnimation(.easeInOut(duration: 0.2)) { filmed = note.object != nil }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.4) {
-                withAnimation(.easeInOut(duration: 0.2)) { filmed = nil }
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: AppDelegate.pictureSaved)) { note in
-            withAnimation(.easeInOut(duration: 0.2)) { pictured = note.object != nil }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.4) {
-                withAnimation(.easeInOut(duration: 0.2)) { pictured = nil }
-            }
-        }
     }
 
     // MARK: Header
@@ -117,8 +69,7 @@ struct MenuBarView: View {
     var available: Bool {
         sample != nil
             || (track != nil && status != .notRunning && status != .demo
-                && (model.owner == nil || model.owner == SpotifyMonitor.bundleID || model.owner == "com.apple.Music"
-                    || model.owner == YouTubeMusicMonitor.owner))
+                && (model.owner == nil || model.owner == SpotifyMonitor.bundleID || model.owner == "com.apple.Music"))
     }
 
     var canSeek: Bool {
@@ -251,11 +202,6 @@ struct MenuBarView: View {
     /// The cover takes you to whatever is doing the playing, as it does in the settings panel.
     func openPlayer() {
         guard sample == nil else { return }
-        if model.owner == YouTubeMusicMonitor.owner {
-            actions.close()
-            YouTubeMusicMonitor.shared?.show()
-            return
-        }
         let bundle = model.owner ?? SpotifyMonitor.bundleID
         guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle) else { return }
         actions.close()
@@ -264,43 +210,24 @@ struct MenuBarView: View {
 
     // MARK: Tiles
 
-    var clockOn: Bool {
-        settings.clockEnabled && !settings.scene.isTopDown && Referral.owns(settings.clockStyle)
-    }
-    var shownRecord: RecordStyle {
-        settings.shuffleRecords
-            ? (collection.unlocked.sorted { $0.rawValue < $1.rawValue }.first ?? .black) : settings.recordStyle
-    }
-
     func title(_ pick: MenuBarPick) -> String {
         switch pick {
         case .scene: return L("Scene", "シーン")
-        case .deck: return L("Turntable", "ターンテーブル")
-        case .record: return L("Record", "レコード")
-        case .clock: return L("Clock", "時計")
         case .more: return L("More", "その他")
-        case .friends: return L("Friends", "フレンド")
-        case .inbox: return L("Inbox", "受信箱")
         }
     }
 
     func value(_ pick: MenuBarPick) -> String {
         switch pick {
         case .scene: return settings.scene.title
-        case .deck: return settings.turntable.title
-        case .record: return settings.shuffleRecords ? L("Shuffle", "シャッフル") : settings.recordStyle.title
-        case .clock: return clockOn ? settings.clockStyle.title : L("Off", "オフ")
-        case .more, .friends, .inbox: return ""
+        case .more: return ""
         }
     }
 
     @ViewBuilder func picture(_ pick: MenuBarPick) -> some View {
         switch pick {
         case .scene: still(thumbnails.images[settings.scene])
-        case .deck: still(thumbnails.decks[settings.turntable])
-        case .record: recordPicture
-        case .clock: still(thumbnails.clocks[settings.clockStyle])
-        case .more, .friends, .inbox: EmptyView()
+        case .more: EmptyView()
         }
     }
 
@@ -320,19 +247,6 @@ struct MenuBarView: View {
         if let image {
             Image(nsImage: image).resizable().interpolation(.high).scaledToFill()
                 .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity).clipped()
-        }
-    }
-
-    /// The record on the platter, seen from above: half of it, coming in from the right, as if out of its sleeve.
-    var recordPicture: some View {
-        GeometryReader { area in
-            if let image = thumbnails.records[shownRecord] {
-                Image(nsImage: image).resizable().interpolation(.high).scaledToFit()
-                    .frame(width: area.size.height * 1.5, height: area.size.height * 1.5)
-                    .clipShape(Circle())
-                    .shadow(color: .black.opacity(0.6), radius: 6)
-                    .position(x: area.size.width - area.size.height * 0.42, y: area.size.height * 0.5)
-            }
         }
     }
 

@@ -6,12 +6,10 @@ import SwiftUI
 // glass switches and segments, the album's colour), in place of a plain menu. And the status item itself: the Back in
 // Black record in miniature when nothing plays, and a small waveform while music plays.
 //
-// `AppDelegate.setupStatusItem` makes a `MenuBarController` and that is all it knows of any of this. The old NSMenu
-// (`AppDelegate.menuNeedsUpdate`) is still built, and shown on a right-click; take that out and nothing here changes.
+// `AppDelegate.setupStatusItem` makes a `MenuBarController` and that is all it knows of any of this.
 
 /// What the panel asks the app to do: the things only the app delegate can.
 struct MenuBarActions {
-    var openSettings: () -> Void = {}
     var transport: (SpotifyMonitor.Command) -> Void = { _ in }
     var seek: (Double) -> Void = { _ in }
     var openAutomation: () -> Void = {}
@@ -21,11 +19,11 @@ struct MenuBarActions {
     var close: () -> Void = {}
 }
 
-/// What opens out into a card: the four pictures (into their choices), and the ⋯ button (into everything else).
+/// What opens out into a card: the scene picture (into its choices), and the ⋯ button (into everything else).
 enum MenuBarPick: String, CaseIterable {
-    case scene, deck, record, clock, more, friends, inbox
-    /// The two that hang from their buttons in the header (round buttons), as against the tiles.
-    var hangs: Bool { self == .more || self == .friends || self == .inbox }
+    case scene, more
+    /// The one that hangs from its button in the header (a round button), as against the tile.
+    var hangs: Bool { self == .more }
 }
 
 /// Whether the panel is out, which of its pictures is opened out, and the view its ⋯ menu drops from.
@@ -34,12 +32,6 @@ final class MenuBarState: ObservableObject {
     @Published var expanded: MenuBarPick?
     /// The one opened out last: kept over the others until it is all the way back in its place.
     @Published var settling: MenuBarPick?
-    /// A record lifted out of the Record card's grid and held up.
-    @Published var record: RecordStyle?
-
-    /// Lifting a record out, and putting it back: the settings panel's record wall's pace.
-    func lift(_ style: RecordStyle) { withAnimation(.easeInOut(duration: 0.5)) { record = style } }
-    func drop() { withAnimation(.easeInOut(duration: 0.45)) { record = nil } }
     weak var host: NSView?
 
     /// The settings panel's springs for a button opening into a card, and the card going back into it.
@@ -53,7 +45,6 @@ final class MenuBarState: ObservableObject {
 
     func collapse() {
         guard let was = expanded else { return }
-        record = nil
         withAnimation(Self.closing, completionCriteria: .logicallyComplete) {
             expanded = nil
         } completion: { [weak self] in
@@ -76,7 +67,6 @@ struct MenuBarSample {
 /// The status item, its panel, and its waveform (or still record).
 final class MenuBarController: NSObject {
     private let item: NSStatusItem
-    private let classic: NSMenu?
     private let model: NowPlaying
     private let settings: Settings
     private var actions: MenuBarActions
@@ -89,9 +79,8 @@ final class MenuBarController: NSObject {
     private var isOut: Bool { panel?.isVisible == true && state.shown }
     private var lastClosed = 0.0
 
-    init(item: NSStatusItem, classic: NSMenu?, model: NowPlaying, settings: Settings, actions: MenuBarActions) {
+    init(item: NSStatusItem, model: NowPlaying, settings: Settings, actions: MenuBarActions) {
         self.item = item
-        self.classic = classic
         self.model = model
         self.settings = settings
         self.actions = actions
@@ -122,15 +111,6 @@ final class MenuBarController: NSObject {
     // MARK: Clicks
 
     @objc private func clicked(_ sender: Any?) {
-        let event = NSApp.currentEvent
-        if let classic, event?.type == .rightMouseDown || event?.modifierFlags.contains(.control) == true {
-            // (The old menu, for as long as it is kept.)
-            close(animated: false)
-            item.menu = classic
-            item.button?.performClick(nil)
-            item.menu = nil
-            return
-        }
         if isOut {
             close()
             return
@@ -186,7 +166,6 @@ final class MenuBarController: NSObject {
             self.state.host = nil
             self.state.expanded = nil
             self.state.settling = nil
-            self.state.record = nil
         }
         guard animated, state.shown else {
             state.shown = false
@@ -205,7 +184,7 @@ final class MenuBarController: NSObject {
 
     /// Escape puts an opened-out picture back first, and the panel away after.
     private func escape() {
-        if state.record != nil { state.drop() } else if state.expanded != nil { state.collapse() } else { close() }
+        if state.expanded != nil { state.collapse() } else { close() }
     }
 
     /// Put away by a click anywhere else, and by Escape.
@@ -493,9 +472,9 @@ enum RecordGlyph {
 // MARK: - Pictures off screen
 
 extension MenuBarController {
-    /// `2dle --snapshot <file.png> --menubar [--nothing] [--expand scene|deck|record|clock] [--glyphs]`: the
+    /// `2dle --snapshot <file.png> --menubar [--nothing] [--expand scene|more] [--glyphs]`: the
     /// panel (or the status item's 24 drawings) drawn off screen into a PNG, over a still of a scene. Use
-    /// `SPINDLE_NOGLASS=1`, since glass is not drawn off screen, and `SPINDLE_LANG=ja` for Japanese. Nothing real is
+    /// `SPINDLE_NOGLASS=1`, since glass is not drawn off screen. Nothing real is
     /// played, paused or saved.
     static func snapshot(_ args: [String], to out: String) -> Int32 {
         let app = NSApplication.shared
@@ -522,17 +501,9 @@ extension MenuBarController {
         state.shown = true
         state.expanded = value("--expand").flatMap(MenuBarPick.init(rawValue:))
         state.settling = state.expanded
-        state.record = value("--focus").flatMap(RecordStyle.init(rawValue:))
-        // (`--friends` with `SPINDLE_ACCOUNT=<name>`: the made-up friends, for a picture of their card.)
-        if args.contains("--friends") { MainActor.assumeIsolated { AccountStore.shared.pretendFriends(true) } }
-        // (`--inbox <scenario>`: the inbox laid out as `Inbox.stage` lays it, and `--inbox-letter` with the letter open.)
-        if let scenario = value("--inbox") { MainActor.assumeIsolated { Inbox.shared.stage(scenario) } }
-        let friendsPage: MenuBarView.FriendsPage =
-            value("--friends-page") == "add" ? .add : (value("--friends-page") == "friend" ? .friend(7) : .list)
         let content = AnyView(
             MenuBarView(
-                state: state, model: model, settings: Settings.shared, actions: MenuBarActions(), sample: sample,
-                startPage: friendsPage, startLetter: args.contains("--inbox-letter")))
+                state: state, model: model, settings: Settings.shared, actions: MenuBarActions(), sample: sample))
         let backdrop = SceneThumbnails.shared.images[.listeningRoom]
         let view = NSHostingView(
             rootView: AnyView(

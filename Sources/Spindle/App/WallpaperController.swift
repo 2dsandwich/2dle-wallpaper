@@ -291,11 +291,7 @@ final class WallpaperController: NSObject, SCNSceneRendererDelegate {
     /// while, everything the picture is made of is given back: the scene, its textures, the buffers it is drawn in, most of
     /// a gigabyte. What stands in the window meanwhile is a picture of it as it was left. When the desktop comes back into
     /// view the scene is built again behind that picture, which takes a second or two, and the picture is taken away.
-    /// (Each change is told as `restingChanged`: friends' live songs are let go while every screen rests.)
-    private(set) var resting = false {
-        didSet { if resting != oldValue { NotificationCenter.default.post(name: Self.restingChanged, object: self) } }
-    }
-    static let restingChanged = Notification.Name("SpindleWallpaperResting")
+    private(set) var resting = false
     private var rousing = false
     private var hiddenSince: CFTimeInterval?
     /// A change of scene or turntable asked for while the scene was being built again: done when that is over.
@@ -335,20 +331,6 @@ final class WallpaperController: NSObject, SCNSceneRendererDelegate {
         link.isPaused = !drawing
         pacer = link
         layDrawing()
-    }
-
-    /// A film of the scene is being made, or has just been finished. While one is, the scene goes on being drawn and
-    /// moving as if it were in plain sight, however much is in front of it, and is woken first if it was resting: a
-    /// film of a desktop that is covered by windows is still a film of the scene, and not of one picture of it.
-    func setFilming(_ recorder: Recorder?) {
-        let on = recorder != nil
-        stageLock.lock()
-        filming = recorder
-        stageLock.unlock()
-        forceRendering = on
-        hiddenSince = nil
-        if on, resting { rouse() }
-        wake()
     }
 
     /// A clean picture of the scene as it stands, with nothing over it: what is being drawn, or, while the scene rests
@@ -406,7 +388,7 @@ final class WallpaperController: NSObject, SCNSceneRendererDelegate {
         replacementGeneration &+= 1
         // In the scene's place, the least there can be of one: everything that speaks to "the stage" goes on having one to
         // speak to, and it is never drawn. (No room, no sleeves; and it makes no sound.)
-        let stand = Stage(preset: .fireside, current: model.art, history: [], transparent: true)
+        let stand = Stage(preset: .listeningRoom, current: model.art, history: [], transparent: true)
         stageLock.lock()
         stage = stand
         outgoing = nil
@@ -645,18 +627,6 @@ final class WallpaperController: NSObject, SCNSceneRendererDelegate {
             .sink { [weak self] _ in DispatchQueue.main.async { self?.syncDaylight() } }.store(in: &subscriptions)
         settings.$testingSunHour.dropFirst().removeDuplicates().receive(on: DispatchQueue.main)
             .sink { [weak self] _ in DispatchQueue.main.async { self?.syncDaylight() } }.store(in: &subscriptions)
-        // The weather where the Mac is, for whoever has asked for it: rain comes and goes, the day is as long as it is there.
-        NotificationCenter.default.publisher(for: LocalWeather.changed).receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                guard let self else { return }
-                self.stage.applyWeather()
-                if self.screen == NSScreen.screens.first { SceneAudio.shared.setScene(self.settings.scene) }
-                // (The length of the day may have changed with it: the hour is handed on again, whatever it was.)
-                self.sunApplied = nil
-                self.syncDaylight()
-                self.invalidateBuildingReplacement()
-                self.wake()
-            }.store(in: &subscriptions)
         // The clock only needs a look once a second; it redraws when the minute turns over.
         let tick = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
             guard let self else { return }
@@ -1372,21 +1342,6 @@ final class WallpaperController: NSObject, SCNSceneRendererDelegate {
     }
 
     // MARK: SCNSceneRendererDelegate (render thread)
-
-    /// A film is being made of the scene (see `Recorder`): each frame that is drawn is drawn once more for it.
-    private var filming: Recorder?
-
-    func renderer(_ renderer: SCNSceneRenderer, didRenderScene scene: SCNScene, atTime time: TimeInterval) {
-        stageLock.lock()
-        let recorder = filming
-        let current = stage
-        stageLock.unlock()
-        guard let recorder, let device = renderer.device, scene === current.scene else { return }
-        let bounds = renderer.currentViewport
-        recorder.capture(
-            scene: scene, pointOfView: current.cameraNode, device: device,
-            aspect: bounds.height > 0 ? bounds.width / bounds.height : 1.54)
-    }
 
     func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
         framesDrawn += 1

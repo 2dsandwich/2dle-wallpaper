@@ -50,51 +50,14 @@ extension Stage {
     func sunRayOpenings() -> [SunRayOpening] {
         var list: [SunRayOpening] = []
         switch preset {
-        case .alpineSunset:
-            // The cabin's window, the low sun in through its three panes towards us.
-            let o = AlpineScene.opening
-            list.append(
-                SunRayOpening(
-                    corner: SIMD3(o.x0, o.y0, AlpineScene.glassZ), across: SIMD3(o.x1 - o.x0, 0, 0),
-                    up: SIMD3(0, o.y1 - o.y0, 0), floor: 0, reach: 1.1, strength: 1.0))
-        case .garage:
-            // The side window on the left, thrown across the bench; stopping at the pegboard's wall.
-            list.append(
-                SunRayOpening(
-                    corner: .zero, across: SIMD3(1, 0, 0), up: SIMD3(0, 1, 0), floor: 0,
-                    reach: 3.2, strength: 1.44, beam: SIMD3(0.95, 0.85, 2.4), wall: SIMD4(0, 0, 1, -0.42)))
-        case .afterHours:
-            // The front windows' glazing, onto the table up here, and long across the room below.
-            list.append(
-                SunRayOpening(
-                    corner: .zero, across: SIMD3(1, 0, 0), up: SIMD3(0, 1, 0), floor: 0,
-                    reach: 3.0, strength: 0.45, beam: SIMD3(1.3, 1.3, 2.2)))
-            list.append(
-                SunRayOpening(
-                    corner: .zero, across: SIMD3(1, 0, 0), up: SIMD3(0, 1, 0), floor: CafeScene.tiles, reach: 6.0,
-                    strength: 0.3, sun: 1, beam: SIMD3(2.6, 2.6, 4.0)))
-        // (Not the Seaside: with no roof or rail to come in under, its shaft lay across the sea as a broad milky beam.
-        // The low sun is in the water's own glitter there: `CoastalScene`'s sea shader.)
         // (Not the Boathouse: out on the dock there is no opening for a shaft, and the sun is in the frame, so its shafts
         // are in the sky's haze over the far hill, drawn with the view: `BoathouseScene.lakeShader`.)
-        case .loft:
-            // The Stahl House: in under the roof's edge through the glass wall ahead, between the door's stile and the
-            // mullion, from the sun low over the city on the right: faint, short, only in the air over the table (laid
-            // wider and longer they streaked the floor and the wing's brick as fake shafts).
-            let glass = StahlScene.glassZ
-            list.append(
-                SunRayOpening(
-                    corner: SIMD3(StahlScene.mullionX.1, 0.0, glass), across: SIMD3(StahlScene.stileX.0 - StahlScene.mullionX.1, 0, 0),
-                    up: SIMD3(0, StahlScene.ceilingY - 0.05, 0), floor: 0,
-                    reach: 1.6, strength: 0.06, keep: SIMD4(-0.42, 0.17, 0.10, 0.34)))
         case .tatami:
             // Seen from above: the low sun in across the mats from the garden side, faint.
             list.append(
                 SunRayOpening(
                     corner: .zero, across: SIMD3(1, 0, 0), up: SIMD3(0, 1, 0), floor: 0,
                     reach: 2.6, strength: 0.56, beam: SIMD3(1.2, 1.0, 1.8)))
-        // (Not the New York Loft: its shaft down into the room below is seen against the big window, and even faint it
-        // laid a haze over the street at the ends of a clear day.)
         default: break
         }
         return list
@@ -209,22 +172,13 @@ extension Stage {
         if exposureDesign == nil { exposureDesign = camera.exposureOffset }
         guard let design = exposureDesign else { return }
         var ev: Float = 0
-        let adapts: Set<ScenePreset> = [
-            .alpineSunset, .afterHours, .garage, .goldenNook, .turntable, .loft, .tatami, .bedside,
-        ]
+        let adapts: Set<ScenePreset> = [.turntable, .tatami]
         if let state, let hour, adapts.contains(preset),
             ProcessInfo.processInfo.environment["SPINDLE_NOADAPT"] == nil
         {
             let low = state.night ? 0 : Daylight.lowSun(at: hour, design: sunDesign)
             let sunUp = state.night ? 0 : min(state.strength, 1)
-            // The sun facing the lens, and the low sun pouring in. (The Stahl House's sun is in its glass, drawn by the
-            // view's own flare: how nearly it faces the lens is worked out from its light and the level lens.)
-            var near = near
-            if preset == .loft, let sun = suns.first {
-                let toSun = simd_normalize(sun.node.simdPosition - sun.target)
-                let ahead = simd_act(simd_quatf(angle: StahlScene.yaw, axis: SIMD3(0, 1, 0)), SIMD3<Float>(0, 0, -1))
-                near = smoothstep(0.80, 0.97, simd_dot(toSun, ahead))
-            }
+            // The sun facing the lens, and the low sun pouring in.
             let glare = near * max(sunUp, low) * clear
             let pouring = low * clear * (sunRays.isEmpty ? 0.5 : 1)
             // (Not opened up at night: a sixth of a stop more took the spindle's and the lamps' glints past white at 23 h

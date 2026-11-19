@@ -18,9 +18,6 @@ final class SystemPlayerMonitor {
     private var coverless: Set<String> = []
     private var lookups: Set<String> = []
     private var musicApps: [String: Bool] = [:]
-    /// Told of every report from a browser (bundle, title, album, playing): YouTube Music without our extension shows up
-    /// here (`YouTubeMusicMonitor.browserPlaying`).
-    var onBrowser: ((String, String, String, Bool) -> Void)?
 
     /// The declared music category extends support without treating every media app as music.
     private func acceptsMusicApp(_ identifier: String) -> Bool {
@@ -140,9 +137,7 @@ final class SystemPlayerMonitor {
 
     /// The player we were following stopped being the one in charge.
     private func release() {
-        // (YouTube Music in a browser, heard through our extension, is not this monitor's to let go: the browser it plays
-        // in is not a player here.)
-        guard let owner = model.owner, owner != SpotifyMonitor.bundleID, owner != YouTubeMusicMonitor.owner else {
+        guard let owner = model.owner, owner != SpotifyMonitor.bundleID else {
             return
         }
         model.update(track: nil, isPlaying: false, position: 0)
@@ -151,11 +146,6 @@ final class SystemPlayerMonitor {
     }
 
     private func handle(_ report: [String: Any]) {
-        if let bundle = report["bundle"] as? String, BrowserBridge.isBrowser(bundle) {
-            onBrowser?(
-                bundle, report["title"] as? String ?? "", report["album"] as? String ?? "",
-                report["playing"] as? Bool ?? false)
-        }
         guard let bundle = report["bundle"] as? String,
             acceptsMusicApp(bundle)
         else {
@@ -388,11 +378,6 @@ final class SystemPlayerMonitor {
     private var failures: [String: Int] = [:]
 
     private func lookUp(_ wanted: CatalogueCover.Wanted, key: String) {
-        guard Privacy.lookups else {
-            lookups.remove(key)
-            noCover(key)
-            return
-        }
         CatalogueCover.find(wanted) { [weak self] cover, final in
             DispatchQueue.main.async {
                 guard let self else { return }

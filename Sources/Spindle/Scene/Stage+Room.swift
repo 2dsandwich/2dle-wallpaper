@@ -7,15 +7,8 @@ extension Stage {
     func remadeScene() -> RemadeSceneEnvironment? {
         switch preset {
         case .listeningRoom: return LibraryScene.make()
-        case .afterHours: return CafeScene.make()
         case .rainyNewYork: return CourtyardScene.make()
-        case .goldenNook: return CoastalScene.make()
-        case .alpineSunset: return AlpineScene.make()
-        case .garage: return GarageScene.make()
-        case .bedside: return LoftScene.make()
-        case .fireside: return FiresideScene.make()
         case .turntable: return BoathouseScene.make()
-        case .loft: return StahlScene.make()
         default: return nil
         }
     }
@@ -212,24 +205,7 @@ extension Stage {
     }
 
     func buildRoom(transparent: Bool) {
-        // (The Fireside is also the bare stand-in while the wallpaper rests: that one is the deck, the stand and the old
-        // fire's light on a clear ground, with no room.)
-        if !(transparent && preset == .fireside), let environment = remadeScene() {
-            buildRemade(environment, transparent: transparent, topDown: false)
-            return
-        }
-        addShadowCatcher(width: 3, depth: 1.6, centre: SIMD3(0, 0, 0.2))
-        rig = Props.turntable(turntableStyle)
-        rig.root.simdPosition = SIMD3<Float>(0, 0, 0)
-        rig.root.adding(to: world)
-        rest(rig.root)
-        let stand = Props.coverStand(design: standDesign)
-        stand.simdPosition = standOrigin
-        stand.simdEulerAngles = SIMD3(0, standYaw, 0)
-        stand.adding(to: world)
-        rest(stand)
-        rest(at: SIMD3(stackOrigin.x, 0, stackOrigin.z), size: SIMD2(repeating: Dim.sleeveSize + 0.012), yaw: stackYaw)
-        lightStandIn()
+        if let environment = remadeScene() { buildRemade(environment, transparent: transparent, topDown: false) }
     }
 
     /// Random choices that hold for one scene during one launch.
@@ -244,19 +220,5 @@ extension Stage {
         catcher.simdEulerAngles = SIMD3(-.pi / 2, 0, 0)
         catcher.simdPosition = centre
         catcher.adding(to: world)
-    }
-
-    /// The bare stand-in's light (see `buildRoom`): the old Fireside's fire, low from the left, flickering.
-    func lightStandIn() {
-        environment("lebombo", 0.035)
-        let fire = addSpot(
-            from: SIMD3(-2.3, 0.42, 1.15), to: SIMD3(0.1, 0.12, -0.05), color: rgb(1.0, 0.50, 0.18), intensity: 170,
-            cone: 62, shadowAlpha: 0.7, shadowRadius: 6, mapSize: 2048, near: 0.6, far: 8)
-        addOmni(at: SIMD3(-1.5, 0.2, 0.1), color: rgb(1.0, 0.45, 0.15), intensity: 12, range: 2.6)
-        flicker = (fire, 170)
-        ambientFrameRate = 15
-        Mat.setSheen(
-            vinyl, keyDir: SIMD3(-2.3, 0.6, 1.15), keyColor: SIMD3(0.16, 0.08, 0.03),
-            fillDir: SIMD3(0.5, 0.6, 0.3), fillColor: SIMD3(0.012, 0.007, 0.004))
     }
 }

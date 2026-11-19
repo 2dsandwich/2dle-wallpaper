@@ -9,17 +9,7 @@ extension Stage {
         let sun: SIMD3<Float>
         let tint: (CGFloat, CGFloat, CGFloat)
         let strength: CGFloat
-        // (The rest come from where their window is, out of the picture or not: then it is taken from just beyond
-        // the edge nearest it. Not in the Library, the Fireside or the Night Desk, which have no window, nor the Poolside,
-        // whose sun is behind the lens all day.)
-        var aim: SIMD3<Float>? = nil
         switch preset {
-        // The Seaside: the sun low over the water ahead and to the left. (At 0.74 its ghosts stood out on the dark sea as
-        // marks on the water.)
-        case .goldenNook:
-            sun = SIMD3(-4.95, 1.75, -2.78)
-            tint = (1.0, 0.72, 0.42)
-            strength = 0.44
         // The Boathouse: the end of the day's sun going down over the far hill ahead, in the frame: the flare is laid where
         // the sun is (it follows the light, not a window).
         case .turntable:
@@ -30,34 +20,10 @@ extension Stage {
             sun = SIMD3(-0.95, 1.2, -1.0)
             tint = (1.0, 0.94, 0.82)
             strength = 0.46
-        // The Café: the afternoon low through the front windows, off to the left of us.
-        case .afterHours:
-            sun = SIMD3(-3.0, 0.6, -1.0)
-            tint = (1.0, 0.86, 0.64)
-            strength = 0.50
-        // The Alpine Cabin: the evening sun beyond the panelling to the right of the window, never in it. (Taken from the
-        // sky in the window, the glow of it sat in the middle of the picture like a second sun.)
-        case .alpineSunset:
-            sun = SIMD3(3.0, 0.7, -2.2)
-            tint = (1.0, 0.66, 0.42)
-            strength = 0.26
-        // (Not the Winter Garden: it is always snowing there, an overcast sky with no sun to flare. Its ghosts read as
-        // marks over the gloves and the rail: review, 2026-10-19.)
-        // The New York Loft: the big window's daylight, from above it and to the left (only ever by day, and dry).
-        case .bedside:
-            sun = SIMD3(-3.4, 2.5, -5.05)
-            tint = (0.90, 0.93, 1.0)
-            strength = 0.42
-        // The Garage: the side window off to the left, by the bench.
-        case .garage:
-            sun = SIMD3(-2.9, 0.9, -0.6)
-            tint = (1.0, 0.90, 0.76)
-            strength = 0.34
         default: return
         }
-        if ![.goldenNook, .tatami, .turntable].contains(preset) { aim = sun }
-        flareAim = aim
-        flareAtEdge = aim != nil
+        flareAim = nil
+        flareAtEdge = false
         flareDesign = (tint, strength)
         if preset == .tatami, overlayNode == nil {
             // A branch of cherry blossom just in front of the lens, far too near to be in focus,
@@ -130,9 +96,7 @@ extension Stage {
         let source = CGPoint(x: CGFloat(at.x), y: CGFloat(at.y))
         // (The older rooms keep the soft veil of light round the source as well; everywhere it is the
         // ghosts that are wanted: the shape of the aperture, repeated across the frame.)
-        // (The Seaside keeps only the veil: its ghosts landed on the dark sea and read as marks on the water.)
-        let veiled = remadeEnvironment == nil || preset == .goldenNook
-        // (The Seaside has its ghosts too now: the owner asked for the hexagons in every scene with a sun, 2026-10-18.)
+        let veiled = remadeEnvironment == nil
         let ghosts = !preset.isTopDown
         let image =
             kept

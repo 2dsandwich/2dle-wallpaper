@@ -11,9 +11,7 @@ extension Stage {
                 passivePresentation
                 ? (suppliedWearLevels[id] ?? 0) : SleeveWear.level(seconds: Collection.shared.wearSeconds(for: id))
         }
-        // (The Seaside's covers live in salt air and strong sun: more of the same handling, or its bright daylight
-        // left them reading as pristine flat graphics.)
-        return max(earned, Stage.handled(id) + (preset == .goldenNook ? 0.9 : 0))
+        return max(earned, Stage.handled(id))
     }
 
     /// Every record on the desk has been taken out and put back before: never factory fresh, whatever has been heard of
@@ -51,8 +49,7 @@ extension Stage {
         if let remadeEnvironment { return remadeEnvironment.artworkGain }
         switch preset {
         case .listeningRoom: return 0.82
-        case .goldenNook, .tatami: return 0.85
-        case .loft, .alpineSunset: return 0.88
+        case .tatami: return 0.85
         default: return 1
         }
     }
@@ -72,9 +69,7 @@ extension Stage {
     /// A print's ceiling under white is kept in what this camera shows (`Mat.holdsHighlights`), so it is told the
     /// camera's exposure. (Only written when it differs, like everything asked for again every second.)
     func exposePrint(_ material: SCNMaterial?) {
-        // (The Night Desk's prints are held a tenth lower: the pile's edges, lit edge on by the candle close beside
-        // them, sat at the ceiling, and the film's warm shoulder took their red to 247.)
-        let seen = Float(pow(2, cameraNode.camera?.exposureOffset ?? 0)) * (preset == .nightDeck ? 1.12 : 1)
+        let seen = Float(pow(2, cameraNode.camera?.exposureOffset ?? 0))
         guard let material, let was = material.value(forKey: "printExposure") as? NSNumber,
             abs(was.floatValue - seen) > 0.0001
         else { return }

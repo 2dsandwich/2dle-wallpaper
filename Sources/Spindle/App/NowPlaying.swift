@@ -207,7 +207,7 @@ final class NowPlaying: ObservableObject {
 
     /// The app cannot hear the music, so it asks Deezer's public catalogue for the track's BPM.
     private func lookUpTempo(for track: Track) {
-        guard Privacy.lookups, tempos[track.id] == nil, !tempoLookups.contains(track.id), !track.title.isEmpty,
+        guard tempos[track.id] == nil, !tempoLookups.contains(track.id), !track.title.isEmpty,
             var components = URLComponents(string: "https://api.deezer.com/search")
         else { return }
         tempoLookups.insert(track.id)
@@ -310,7 +310,7 @@ final class NowPlaying: ObservableObject {
     /// per album: first for the album itself, then for the running time of every song on it.
     private func lookUpAlbum(for track: Track) {
         let key = albumKey(track)
-        guard Privacy.lookups, !track.album.isEmpty, timelines[key] == nil, !albumLookups.contains(key),
+        guard !track.album.isEmpty, timelines[key] == nil, !albumLookups.contains(key),
             var components = URLComponents(string: "https://itunes.apple.com/search")
         else { return }
         albumLookups.insert(key)
@@ -499,14 +499,6 @@ final class NowPlaying: ObservableObject {
             let quick = URL(string: string.replacingOccurrences(of: "1200x1200bb", with: "600x600bb"))
         {
             return [quick, url]
-        }
-        // (YouTube Music's covers come at any size asked for as well, named at the end: "…=w544-h544-l90-rj". The page's
-        // size first, then a big one.)
-        if url.host?.hasSuffix("googleusercontent.com") == true,
-            let size = string.range(of: #"=w\d+-h\d+"#, options: .regularExpression),
-            let large = URL(string: string.replacingCharacters(in: size, with: "=w1200-h1200")), large != url
-        {
-            return [url, large]
         }
         return [url]
     }

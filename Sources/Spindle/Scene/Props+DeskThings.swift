@@ -781,48 +781,6 @@ extension Props {
         ]) { _, new in new }
     }
 
-    /// A very small succulent in a concrete pot.
-    static func smallPlant() -> SCNNode {
-        // (Its soil sits just under the leaves; the pot is too small for the shared planter.)
-        let node = SCNNode()
-        let concrete = Mat.pbr(rgb(0.62, 0.61, 0.58), roughness: 0.9)
-        concrete.diffuse.contents = Mat.mottle
-        concrete.multiply.contents = rgb(0.72, 0.71, 0.68)
-        SCNNode(
-            Mesh.lathe(
-                profile: [
-                    SIMD2(0, 0), SIMD2(0.030, 0), SIMD2(0.036, 0.046), SIMD2(0.033, 0.048), SIMD2(0.031, 0.042),
-                    SIMD2(0, 0.042),
-                ], segments: 36), material: concrete
-        ).adding(to: node)
-        let soil = Mat.pbr(rgb(0.12, 0.08, 0.05), roughness: 1)
-        soil.diffuse.contents = Mat.mottle
-        soil.multiply.contents = rgb(0.22, 0.15, 0.10)
-        SCNNode(Mesh.disc(radius: 0.031, segments: 24), material: soil).at(0, 0.0425, 0).adding(to: node)
-        let jade = Mat.pbr(rgb(0.22, 0.42, 0.26), roughness: 0.40)
-        jade.isDoubleSided = true
-        makeSway(jade, above: 0.045, gain: 6.0)
-        var rng = SeededRandom(seed: 17)
-        for ring in 0..<2 {
-            let count = ring == 0 ? 8 : 6
-            for i in 0..<count {
-                let around = Float(i) / Float(count) * 2 * .pi + Float(ring) * 0.4 + Float(rng.range(-0.15, 0.15))
-                let length: Float = ring == 0 ? 0.048 : 0.036
-                let rise: Float = ring == 0 ? 0.55 : 1.05
-                let leaf = Mesh.surface(uCount: 6, vCount: 8, wrapU: false) { u, v in
-                    let width = 0.022 * pow(sin(max(v, 0.02) * .pi * 0.92), 0.8)
-                    let out = length * v * cos(rise)
-                    let up = 0.043 + length * v * sin(rise) + 0.010 * v * v
-                    let centre = SIMD3(cos(around) * (0.004 + out), up, sin(around) * (0.004 + out))
-                    return centre + SIMD3(-sin(around), 0, cos(around)) * ((u - 0.5) * width)
-                        + SIMD3(0, 0.004 * (1 - 4 * (u - 0.5) * (u - 0.5)), 0)
-                }
-                SCNNode(leaf, material: jade, name: "sway").adding(to: node)
-            }
-        }
-        return node
-    }
-
     /// `pages` sets how thick each book is, so a novella is a sliver beside the big Russians;
     /// `format` is the trim size relative to a standard hardback.
     private static let classics: [(title: String, author: String, colour: NSColor, pages: Float, format: Float)] = [

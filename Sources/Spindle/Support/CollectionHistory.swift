@@ -104,11 +104,6 @@ final class CollectionHistory {
         return bundleID == "app.spindle.ScreenSaver"
     }
 
-    func disablePersistence() {
-        isPassive = true
-        canPersist = false
-    }
-
     func backfillAlbumWear(from oldAlbumTime: [String: Double]) {
         guard !isPassive else { return }
         var changed = false

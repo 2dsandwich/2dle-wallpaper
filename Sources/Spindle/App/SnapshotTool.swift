@@ -14,18 +14,6 @@ enum SnapshotTool {
             return args[i + 1]
         }
         guard let out = value("--snapshot") else { return 2 }
-        if args.contains("--check-record-previews") {
-            let start = Date()
-            let previews = SceneThumbnails()
-            guard previews.records.count == RecordStyle.allCases.count else {
-                print("Missing bundled record previews: \(previews.records.count)/\(RecordStyle.allCases.count)")
-                return 1
-            }
-            print(
-                "Loaded all \(previews.records.count) bundled record previews in \(String(format: "%.3f", Date().timeIntervalSince(start)))s, before any scene renders."
-            )
-            return 0
-        }
         if args.contains("--record-previews") {
             guard let device = MTLCreateSystemDefaultDevice() else { return 1 }
             let directory = URL(fileURLWithPath: out, isDirectory: true)
@@ -61,7 +49,7 @@ enum SnapshotTool {
         }
         if args.contains("--menu-previews") {
             Hidden.suppressed = true
-            // The stills the menu shows for scenes, turntables and clocks, made once at build time.
+            // The stills the menu shows for the scenes, made once at build time.
             guard let device = MTLCreateSystemDefaultDevice() else { return 1 }
             let directory = URL(fileURLWithPath: out, isDirectory: true)
             do { try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true) } catch {
@@ -84,23 +72,6 @@ enum SnapshotTool {
                             "scene-\(preset.rawValue).jpg")
                     })
                 else { return 1 }
-            }
-            for style in TurntableStyle.allCases {
-                guard
-                    autoreleasepool(invoking: {
-                        writeJPEG(SceneThumbnails.deck(style, device: device, size: size), "deck-\(style.rawValue).jpg")
-                    })
-                else { return 1 }
-            }
-            for style in ClockStyle.allCases {
-                let saved = autoreleasepool { () -> Bool in
-                    guard
-                        let cg = DeskClock.preview(style, device: device).cgImage(
-                            forProposedRect: nil, context: nil, hints: nil)
-                    else { return false }
-                    return writePNG(cg, to: directory.appendingPathComponent("clock-\(style.rawValue).png"))
-                }
-                guard saved else { return 1 }
             }
             print("Rendered the menu stills in \(String(format: "%.2f", Date().timeIntervalSince(start)))s.")
             return 0
@@ -132,28 +103,6 @@ enum SnapshotTool {
             if let cg = DeskClock.preview(style, device: device).cgImage(forProposedRect: nil, context: nil, hints: nil)
             {
                 writeJPEG(cg, to: URL(fileURLWithPath: out))
-            }
-            return 0
-        }
-        if let style = ClockStyle(rawValue: value("--clock-box") ?? ""), let device = MTLCreateSystemDefaultDevice() {
-            // The clock's box at the given moments after its tape comes off, one picture each.
-            let box = ClockBoxScene(style: style)
-            box.scene.background.contents = NSColor(white: 0.06, alpha: 1)
-            // (`--torn 0.5`: with its tape half off.)
-            box.peel(to: Float(value("--torn") ?? "1") ?? 1)
-            let renderer = SCNRenderer(device: device, options: nil)
-            renderer.scene = box.scene
-            renderer.pointOfView = box.camera
-            let base = (out as NSString).deletingPathExtension
-            let ext = (out as NSString).pathExtension
-            for (i, t) in (value("--frames") ?? "0").split(separator: ",").compactMap({ Double($0) }).enumerated() {
-                box.pose(at: t)
-                if t > 90 { box.putAway(to: CGPoint(x: 280, y: 520), wide: 92, over: 0.8) }
-                if let cg = renderer.snapshot(
-                    atTime: 0, with: CGSize(width: 560, height: 600), antialiasingMode: .multisampling4X
-                ).cgImage(forProposedRect: nil, context: nil, hints: nil) {
-                    writeJPEG(cg, to: URL(fileURLWithPath: "\(base)_\(i).\(ext)"))
-                }
             }
             return 0
         }
@@ -275,164 +224,8 @@ enum SnapshotTool {
             }
             return 0
         }
-        if args.contains("--update-test") {
-            // Asks for the newest release and, if there is one, fetches and checks it, as the update button does. (`--install`
-            // also has it take this copy's place when this ends: only ever from a copy of the app made to be thrown away.)
-            var said: String?
-            Task { @MainActor in
-                let updater = Updater.shared
-                await updater.check(force: true)
-                print(updater.report)
-                if updater.release != nil {
-                    await updater.download()
-                    print(updater.report)
-                }
-                if args.contains("--install") { updater.install(relaunch: false) }
-                said = updater.report
-            }
-            while said == nil { RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05)) }
-            return 0
-        }
-        if args.contains("--weather") {
-            // What the weather is asked and what it says, for a place given by hand: `SPINDLE_PLACE=35.7,139.7 2dle --snapshot - --weather`.
-            // (And when the sun is up there today, by this Mac's clock.)
-            guard let place = Daylight.place else {
-                print("SPINDLE_PLACE=<latitude>,<longitude> says where")
-                return 1
-            }
-            var said: String?
-            Task {
-                let found = await LocalWeather.weather(at: .init(latitude: place.latitude, longitude: place.longitude))
-                said = found.map { $0.title + ($0.wet ? " (raining)" : " (not raining)") } ?? "no answer"
-            }
-            while said == nil { RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05)) }
-            let day = Daylight.day()
-            print("\(said ?? ""); sun up \(DayClock.label(day.rise)) to \(DayClock.label(day.set))")
-            return 0
-        }
-        if args.contains("--usage") {
-            // What is kept of how long this copy has been in use (see `Usage`). Read only: a test render counts nothing.
-            print(Usage.shared.described)
-            return 0
-        }
-        if args.contains("--backend-check") {
-            // What the server in `backend.json` (or `SPINDLE_BACKEND=<file>`) says to somebody signed out, and what the
-            // app makes of it (see `AccountStore.checkBackend`). Nobody is signed in and nothing is kept.
-            var said: [String]?
-            Task { @MainActor in said = await AccountStore.shared.checkBackend() }
-            while said == nil { RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05)) }
-            said?.forEach { print($0) }
-            return said?.contains { $0.hasPrefix("FAIL") } == true ? 1 : 0
-        }
-        if args.contains("--inbox-card") {
-            // The inbox's card by itself (its pop-up is an NSPopover, which a window off screen does not draw), laid out
-            // with `SPINDLE_INBOX=<scenario>`; `--reading` shows the letter.
-            let app = NSApplication.shared
-            app.setActivationPolicy(.accessory)
-            let reading = args.contains("--reading")
-            let view = MainActor.assumeIsolated {
-                if let scenario = Testing.env("SPINDLE_INBOX") { Inbox.shared.stage(scenario) }
-                if reading { Inbox.shared.letterOpen = Inbox.shared.items.first { $0.kind == .letter }?.id }
-                return NSHostingView(
-                    rootView: InboxCard(
-                        accent: Color(red: 0.25, green: 0.45, blue: 0.75), reading: reading, open: { _ in }
-                    )
-                    .foregroundStyle(Color.white.opacity(0.92)).preferredColorScheme(.dark).padding(20).fixedSize())
-            }
-            let window = NSWindow(
-                contentRect: NSRect(x: -9000, y: -9000, width: 370, height: 800), styleMask: [.borderless],
-                backing: .buffered, defer: false)
-            window.backgroundColor = NSColor(white: 0.11, alpha: 1)
-            window.contentView = view
-            window.setContentSize(view.fittingSize)
-            window.orderFront(nil)
-            RunLoop.main.run(until: Date(timeIntervalSinceNow: 2))
-            guard let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return 1 }
-            view.cacheDisplay(in: view.bounds, to: rep)
-            try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: out))
-            return 0
-        }
         // The menu bar's drop-down, its bubble or its record's drawings (see `MenuBarController.snapshot`).
         if args.contains("--menubar") { return MenuBarController.snapshot(args, to: out) }
-        if args.contains("--ui") {
-            // The settings panel drawn in a window parked far off screen, so its layout can be
-            // checked without anything appearing on the desktop. (`SPINDLE_FOCUS` picks a record.)
-            let app = NSApplication.shared
-            app.setActivationPolicy(.accessory)
-            let root = SettingsView(model: NowPlaying(), settings: Settings.shared, openAutomation: {}, reconnect: {})
-            let view: NSView
-            let window: NSWindow
-            if args.contains("--panel-window") {
-                // (Made as the app makes the real one, `AppDelegate.openSettings`: its own window class, moved by its
-                // background, a plain view under the hosting view, and the top strip kept as safe area.)
-                let height = 850 + PanelWindow.barHeight
-                window = PanelWindow(
-                    contentRect: NSRect(x: -9000, y: -9000, width: 560, height: height),
-                    styleMask: [.closable, .miniaturizable, .fullSizeContentView], backing: .buffered, defer: false)
-                window.isMovableByWindowBackground = true
-                window.backgroundColor = .black
-                let frame = NSView(frame: NSRect(x: 0, y: 0, width: 560, height: height))
-                let host = NSHostingView(rootView: root.safeAreaPadding(.top, PanelWindow.barHeight))
-                host.frame = frame.bounds
-                frame.addSubview(host)
-                window.contentView = frame
-                view = frame
-            } else {
-                view = NSHostingView(rootView: root)
-                window = NSWindow(
-                    contentRect: NSRect(x: -9000, y: -9000, width: 560, height: 850), styleMask: [.borderless],
-                    backing: .buffered, defer: false)
-                window.backgroundColor = NSColor(white: 0.11, alpha: 1)
-                window.contentView = view
-            }
-            window.orderFront(nil)
-            RunLoop.main.run(until: Date(timeIntervalSinceNow: Double(value("--wait") ?? "7") ?? 7))
-            // (`--hit-map`: which AppKit view a click would land on, every 10 points over the panel, the hosting view's own
-            // regions left out: anything else there is taking clicks meant for the panel.)
-            if args.contains("--hit-map") {
-                var regions: [String: (CGFloat, CGFloat, CGFloat, CGFloat)] = [:]
-                for x in stride(from: CGFloat(5), to: 560, by: 10) {
-                    for y in stride(from: CGFloat(5), to: 850, by: 10) {
-                        let p = view.convert(NSPoint(x: x, y: y), to: nil)
-                        guard let hit = view.hitTest(view.superview?.convert(p, from: nil) ?? p) else { continue }
-                        let name = String(describing: type(of: hit))
-                        if hit === view { continue }
-                        let top = view.isFlipped ? y : 850 - y
-                        let r = regions[name] ?? (x, top, x, top)
-                        regions[name] = (min(r.0, x), min(r.1, top), max(r.2, x), max(r.3, top))
-                    }
-                }
-                for (name, r) in regions.sorted(by: { $0.key < $1.key }) {
-                    print(String(format: "%@  x %.0f…%.0f  y(from top) %.0f…%.0f", name, r.0, r.2, r.1, r.3))
-                }
-            }
-            // (`--click x,y[;x,y…]`: clicks there, measured from the panel's top left, a second apart, as a mouse would, before
-            // the picture is taken; with what the click landed on said for each.)
-            if let clicks = value("--click") {
-                for pair in clicks.split(separator: ";") {
-                    let xy = pair.split(separator: ",").compactMap { Double($0) }
-                    guard xy.count == 2 else { continue }
-                    let inWindow = NSPoint(x: xy[0], y: view.bounds.height - xy[1])
-                    let landed = window.contentView?.hitTest(inWindow).map { String(describing: type(of: $0)) } ?? "nothing"
-                    print("click at \(xy[0]),\(xy[1]) lands on \(landed)")
-                    for (type, delay) in [(NSEvent.EventType.leftMouseDown, 0.08), (.leftMouseUp, 1.0)] {
-                        if let event = NSEvent.mouseEvent(
-                            with: type, location: inWindow, modifierFlags: [],
-                            timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber, context: nil,
-                            eventNumber: 0, clickCount: 1, pressure: 1)
-                        {
-                            window.sendEvent(event)
-                        }
-                        RunLoop.main.run(until: Date(timeIntervalSinceNow: delay))
-                    }
-                }
-                RunLoop.main.run(until: Date(timeIntervalSinceNow: 1.5))
-            }
-            guard let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return 1 }
-            view.cacheDisplay(in: view.bounds, to: rep)
-            try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: out))
-            return 0
-        }
         if let n = value("--dump-latte"), let image = Props.coffeeSurface(Int(n) ?? 1) {
             writePNG(image, to: URL(fileURLWithPath: out))
             return 0
@@ -456,67 +249,6 @@ enum SnapshotTool {
                 }
             }
             print("rock of size (1, 0.5, 0.8) spans", low, high)
-            return 0
-        }
-        if args.contains("--clock-room") {
-            // Whether any of the remade scenes' props stand where a desk clock goes, for every clock: the footprint (x, z
-            // on the desk) of each clock as the stage places it, and of each prop, with any overlap named.
-            func footprint(_ node: SCNNode) -> (SIMD2<Float>, SIMD2<Float>) {
-                var low = SIMD2<Float>(repeating: .greatestFiniteMagnitude)
-                var high = -low
-                node.enumerateHierarchy { child, _ in
-                    guard let geometry = child.geometry, !child.isHidden, child.name != "contactShade",
-                        child.opacity > 0
-                    else { return }
-                    let box = geometry.boundingBox
-                    let (a, b) =
-                        ModelLibrary.extent(of: child)
-                        ?? (
-                            SIMD3(Float(box.min.x), Float(box.min.y), Float(box.min.z)),
-                            SIMD3(Float(box.max.x), Float(box.max.y), Float(box.max.z))
-                        )
-                    for i in 0..<8 {
-                        let corner = SIMD3(i & 1 == 0 ? a.x : b.x, i & 2 == 0 ? a.y : b.y, i & 4 == 0 ? a.z : b.z)
-                        let p = child.simdConvertPosition(corner, to: nil)
-                        low = simd_min(low, SIMD2(p.x, p.z))
-                        high = simd_max(high, SIMD2(p.x, p.z))
-                    }
-                }
-                return (low, high)
-            }
-            func say(_ f: (SIMD2<Float>, SIMD2<Float>)) -> String {
-                String(format: "x %.3f…%.3f  z %.3f…%.3f", f.0.x, f.1.x, f.0.y, f.1.y)
-            }
-            var clocks: [(ClockStyle, (SIMD2<Float>, SIMD2<Float>))] = []
-            for style in ClockStyle.allCases {
-                let clock = DeskClock(style)
-                clock.node.simdPosition = Stage.clockSpot
-                clock.node.simdEulerAngles = SIMD3(0, deg(9), 0)
-                let f = footprint(clock.node)
-                clocks.append((style, f))
-                print("clock", style.rawValue, say(f))
-            }
-            let scenes: [(String, () -> RemadeSceneEnvironment)] = [
-                ("goldenNook", CoastalScene.make), ("alpineSunset", AlpineScene.make),
-                ("rainyNewYork", CourtyardScene.make), ("garage", GarageScene.make), ("loft", StahlScene.make),
-                ("turntable", BoathouseScene.make),
-            ]
-            for (name, make) in scenes {
-                let environment = make()
-                // (The Garage's car, beyond the bench: where it stands, to see it clear of the bench, the rack and the walls.)
-                if let car = environment.root.childNode(withName: "car", recursively: false) {
-                    print(name, "car", say(footprint(car)))
-                }
-                for (k, prop) in environment.props.enumerated() {
-                    let f = footprint(prop)
-                    let hits = clocks.filter { _, c in
-                        c.0.x < f.1.x && f.0.x < c.1.x && c.0.y < f.1.y && f.0.y < c.1.y
-                    }.map { $0.0.rawValue }
-                    print(
-                        name, "prop", k, prop.name ?? "", say(f),
-                        hits.isEmpty ? "" : "OVERLAPS " + hits.joined(separator: ","))
-                }
-            }
             return 0
         }
         if let names = value("--model-size") {
@@ -596,93 +328,6 @@ enum SnapshotTool {
             guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return 1 }
             writePNG(
                 Tex.blur(cg, radius: CGFloat(Double(value("--blur") ?? "11") ?? 11)), to: URL(fileURLWithPath: out))
-            return 0
-        }
-        if args.contains("--bake-car-photo") {
-            // The Garage's 911 photographed in a studio, for the cover of its Haynes manual (`GarageCar.studioPhoto`).
-            let size = (value("--size") ?? "1600x1066").split(separator: "x").compactMap { Int($0) }
-            guard size.count == 2, let cg = GarageCar.studioPhoto(width: size[0], height: size[1]) else { return 1 }
-            writePNG(cg, to: URL(fileURLWithPath: out))
-            return 0
-        }
-        if args.contains("--bake-trees") {
-            // Photographs of a scanned fir with the day's snow on it, for the view from the cabin: the
-            // model is far too heavy to stand thirty of on a wallpaper, and a picture of it is not.
-            // (Run with SPINDLE_RESOURCES pointing at a folder that has the model in `models/`.)
-            guard let device = MTLCreateSystemDefaultDevice() else { return 1 }
-            var made = 0
-            // (The file holds three trees side by side: each is photographed on its own, from two sides.)
-            for part in (value("--trees") ?? "_a_,_b_,_c_").split(separator: ",").map(String.init) {
-                let name = value("--models") ?? "fir_sapling_medium"
-                // (The first picture of each tree is thrown away: the needles only take their new material from the second on.)
-                for (take, yaw) in [Float(20), 20, 160].enumerated() {
-                    let scene = SCNScene()
-                    scene.background.contents = NSColor.clear
-                    let tree = ModelLibrary.node(name, only: [part], length: 1)
-                    tree.simdEulerAngles = SIMD3(0, deg(yaw), 0)
-                    tree.enumerateHierarchy { node, _ in
-                        for material in node.geometry?.materials ?? [] {
-                            material.isDoubleSided = true
-                            // (The needles are marked see-through in the file, though they are solid; the library hides such things.)
-                            material.transparency = 1
-                            material.writesToDepthBuffer = true
-                            // Snow lies on whatever faces the sky, thickest where it faces it squarely.
-                            material.shaderModifiers = [
-                                .surface: """
-                                #pragma body
-                                float3 up = normalize((scn_frame.inverseViewTransform * float4(_surface.normal, 0.0)).xyz);
-                                float lying = smoothstep(0.30, 0.80, up.y);
-                                _surface.diffuse.rgb = mix(_surface.diffuse.rgb * 0.62, float3(0.86, 0.89, 0.95), lying * 0.92);
-                                _surface.roughness = mix(_surface.roughness, 0.9, lying);
-                                """
-                            ]
-                        }
-                    }
-                    scene.rootNode.addChildNode(tree)
-                    func light(
-                        _ type: SCNLight.LightType, _ colour: NSColor, _ intensity: CGFloat, from: SIMD3<Float>? = nil
-                    ) {
-                        let node = SCNNode()
-                        let lamp = SCNLight()
-                        lamp.type = type
-                        lamp.color = colour
-                        lamp.intensity = intensity
-                        node.light = lamp
-                        if let from {
-                            node.simdPosition = from
-                            node.simdLook(at: SIMD3(0, 0.5, 0), up: SIMD3(0, 1, 0), localFront: SIMD3(0, 0, -1))
-                        }
-                        scene.rootNode.addChildNode(node)
-                    }
-                    // The last of the sun, low and from the right; the sky, cold, from everywhere else.
-                    light(.directional, rgb(1.0, 0.60, 0.36), 1500, from: SIMD3(3.0, 1.1, 1.2))
-                    light(.directional, rgb(0.50, 0.60, 0.90), 420, from: SIMD3(-2.0, 2.5, 2.0))
-                    light(.ambient, rgb(0.42, 0.48, 0.66), 380)
-                    let camera = SCNCamera()
-                    camera.usesOrthographicProjection = true
-                    camera.orthographicScale = 0.56
-                    camera.zNear = 0.1
-                    camera.zFar = 20
-                    let eye = SCNNode()
-                    eye.camera = camera
-                    // (Seen from a little above, as from the window.)
-                    eye.simdPosition = SIMD3(0, 0.5 + 6 * sin(deg(17)), 6 * cos(deg(17)))
-                    eye.simdLook(at: SIMD3(0, 0.5, 0), up: SIMD3(0, 1, 0), localFront: SIMD3(0, 0, -1))
-                    scene.rootNode.addChildNode(eye)
-                    let renderer = SCNRenderer(device: device, options: nil)
-                    renderer.scene = scene
-                    renderer.pointOfView = eye
-                    renderer.autoenablesDefaultLighting = false
-                    let image = renderer.snapshot(
-                        atTime: 0, with: CGSize(width: 640, height: 1120), antialiasingMode: .multisampling4X)
-                    guard take > 0, let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
-                        continue
-                    }
-                    writePNG(cg, to: URL(fileURLWithPath: out).appendingPathComponent("fir_\(made).png"))
-                    made += 1
-                }
-            }
-            print("baked", made)
             return 0
         }
         if args.contains("--lid-report") {
@@ -872,11 +517,6 @@ enum SnapshotTool {
         }
 
         advance(to: Double(value("--time") ?? "0.5") ?? 0.5)
-        if let folder = value("--record-test") {
-            // Two seconds of film of this scene, made as the app makes one (see `Recorder`).
-            print(Recorder.test(stage: stage, device: device, folder: folder))
-            return 0
-        }
         if args.contains("--bench") {
             Bench.run(
                 stage: stage, device: device, size: size, frames: Int(value("--bench-frames") ?? "120") ?? 120,
@@ -1039,8 +679,6 @@ enum SnapshotTool {
         let lens = simd_inverse(stage.cameraNode.simdWorldTransform)
         let tall = tan(Float(stage.cameraNode.camera?.fieldOfView ?? 20) * .pi / 360)
         let wide = tall * Float(w) / Float(h)
-        // (The Stahl House's lens is shifted, its own projection: the field of view alone puts the patches wrong.)
-        let shifted = stage.preset == .loft ? stage.cameraNode.camera.map { simd_float4x4($0.projectionTransform) } : nil
         func screen(_ p: SIMD3<Float>) -> SIMD2<Float> {
             // (The Boathouse's lens is shifted off its axis.)
             if stage.preset == .turntable,
@@ -1049,10 +687,6 @@ enum SnapshotTool {
                 return SIMD2((0.5 + 0.5 * at.x) * Float(w), (0.5 - 0.5 * at.y) * Float(h))
             }
             let q = lens * SIMD4(p, 1)
-            if let shifted {
-                let c = shifted * q
-                return SIMD2((0.5 + 0.5 * c.x / c.w) * Float(w), (0.5 - 0.5 * c.y / c.w) * Float(h))
-            }
             return SIMD2((0.5 + 0.5 * q.x / -q.z / wide) * Float(w), (0.5 - 0.5 * q.y / -q.z / tall) * Float(h))
         }
         func luma(_ i: Int) -> Float {

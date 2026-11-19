@@ -86,24 +86,6 @@ extension Stage {
     /// The album the scene is showing, or is on its way to showing.
     var currentAlbumID: String? { requests.last?.id ?? incoming?.art.id ?? held?.art.id }
 
-    /// For a picture of the turntable by itself (the menus' turntable previews): no sleeve anywhere, and the camera
-    /// moved across, at the same height and angle, until the deck is in the middle of the picture. (Owner, 2026-10-17.)
-    func showDeckAlone() {
-        for entry in entries { entry.node.isHidden = true }
-        held?.node.isHidden = true
-        incoming?.node.isHidden = true
-        let (low, high) = rig.root.boundingBox
-        let centre = rig.root.simdConvertPosition(
-            SIMD3(Float(low.x + high.x) / 2, 0, Float(low.z + high.z) / 2), to: nil)
-        // (Where the middle of the picture meets the desk now, and how far that is from the deck's middle.)
-        let eye = cameraNode.simdWorldPosition
-        let ahead = cameraNode.simdWorldFront
-        guard ahead.y < -0.05 else { return }
-        let along = (centre.y - eye.y) / ahead.y
-        let seen = eye + ahead * along
-        cameraNode.simdWorldPosition = eye + SIMD3(centre.x - seen.x, 0, centre.z - seen.z)
-    }
-
     func setAlbum(_ art: AlbumArt, animated: Bool) {
         setMood(for: art, animated: animated)
         if art.id == currentAlbumID {

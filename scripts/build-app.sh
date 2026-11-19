@@ -13,9 +13,6 @@ cp .build/release/2dle "$APP/Contents/MacOS/2dle"
 cp -R Resources/textures Resources/models Resources/hdri Resources/backdrops Resources/fonts Resources/CREDITS.txt "$APP/Contents/Resources/"
 cp -R Resources/sounds "$APP/Contents/Resources/"
 cp build/AppIcon.icns "$APP/Contents/Resources/"
-# Cache record previews in the app bundle so the menu can show them immediately.
-.build/release/2dle --snapshot build/record-previews --record-previews
-cp -R build/record-previews "$APP/Contents/Resources/"
 # The menu shows stills of every scene, turntable and clock; they are made here, once.
 rm -rf build/menu-previews
 .build/release/2dle --snapshot build/menu-previews --menu-previews

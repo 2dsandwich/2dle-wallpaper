@@ -306,7 +306,7 @@ enum Bench {
         }
         autoreleasepool {
             let stand = Stage(
-                preset: .fireside, current: AlbumArt(id: "builtin-0", image: Tex.placeholderCover(0)), history: [],
+                preset: .turntable, current: AlbumArt(id: "builtin-0", image: Tex.placeholderCover(0)), history: [],
                 transparent: true)
             _ = stand
         }
@@ -634,7 +634,7 @@ enum Bench {
                 var older: Stage? =
                     before.map(make)
                     ?? Stage(
-                        preset: .fireside, current: AlbumArt(id: "builtin-0", image: Tex.placeholderCover(0)),
+                        preset: .turntable, current: AlbumArt(id: "builtin-0", image: Tex.placeholderCover(0)),
                         history: [], transparent: true)
                 // (`LEAVE_UNDRAWN=1`: the older is never drawn, so that the newer makes every texture itself.)
                 if let older, env["LEAVE_UNDRAWN"] == nil {
@@ -822,96 +822,6 @@ enum Bench {
     }
 }
 
-/// How smoothly the panel scrolls: launched with `--settings` and `SPINDLE_SCROLL_BENCH=<file>`, the list is run to its
-/// end and back, twice, by itself, and the file is told how the frames came: how far apart, how many came late, and how
-/// much of a processor the app took meanwhile. (`SPINDLE_SCROLL_OPEN=scenes|decks|clocks|none` unfolds another section first.)
-final class ScrollBench: NSObject {
-    private static var running: ScrollBench?
-    private let scroll: NSScrollView
-    private let file: String
-    private var link: CADisplayLink?
-    private var began = 0.0, last = 0.0, cpu0 = 0.0
-    private var gaps: [Double] = []
-    private let seconds = 8.0
-
-    static func start(in window: NSWindow, to file: String) {
-        guard let root = window.contentView else { return }
-        var lists: [NSScrollView] = []
-        func look(_ view: NSView) {
-            if let list = view as? NSScrollView { lists.append(list) }
-            view.subviews.forEach(look)
-        }
-        look(root)
-        guard
-            let scroll = lists.max(by: { ($0.documentView?.frame.height ?? 0) < ($1.documentView?.frame.height ?? 0) })
-        else {
-            try? "no list found\n".write(toFile: file, atomically: true, encoding: .utf8)
-            return
-        }
-        let bench = ScrollBench(scroll: scroll, file: file)
-        running = bench
-        bench.begin()
-    }
-
-    private init(scroll: NSScrollView, file: String) {
-        self.scroll = scroll
-        self.file = file
-    }
-
-    private func begin() {
-        began = CACurrentMediaTime()
-        cpu0 = processCPUSeconds()
-        let link = scroll.displayLink(target: self, selector: #selector(tick))
-        link.add(to: .main, forMode: .common)
-        self.link = link
-    }
-
-    @objc private func tick() {
-        let now = CACurrentMediaTime()
-        if last > 0 { gaps.append(now - last) }
-        last = now
-        let t = now - began
-        guard t < seconds else {
-            finish()
-            return
-        }
-        let range = max((scroll.documentView?.frame.height ?? 0) - scroll.contentView.bounds.height, 0)
-        // (To the end and back twice, easing at each turn as a hand does.)
-        let y = range * (1 - cos(t / seconds * 4 * .pi)) / 2
-        scroll.contentView.setBoundsOrigin(NSPoint(x: 0, y: y))
-        scroll.reflectScrolledClipView(scroll.contentView)
-    }
-
-    private func finish() {
-        link?.invalidate()
-        link = nil
-        let wall = CACurrentMediaTime() - began
-        let cpu = processCPUSeconds() - cpu0
-        let sorted = gaps.sorted()
-        guard !sorted.isEmpty else { return }
-        let usual = sorted[sorted.count / 2]
-        let late = gaps.filter { $0 > usual * 1.5 }.count
-        let range = max((scroll.documentView?.frame.height ?? 0) - scroll.contentView.bounds.height, 0)
-        let line = String(
-            format:
-                "frames %d  usual %.2f ms  mean %.2f ms  p95 %.2f ms  p99 %.2f ms  worst %.2f ms  late %d (%.1f%%)  cpu %.0f%%  list %.0f pt\n",
-            gaps.count, usual * 1000, gaps.reduce(0, +) / Double(gaps.count) * 1000,
-            sorted[min(sorted.count - 1, sorted.count * 95 / 100)] * 1000,
-            sorted[min(sorted.count - 1, sorted.count * 99 / 100)] * 1000, (sorted.last ?? 0) * 1000, late,
-            Double(late) / Double(gaps.count) * 100,
-            cpu / wall * 100, range)
-        if let handle = FileHandle(forWritingAtPath: file) {
-            handle.seekToEndOfFile()
-            handle.write(Data(line.utf8))
-            try? handle.close()
-        } else {
-            try? line.write(toFile: file, atomically: true, encoding: .utf8)
-        }
-        ScrollBench.running = nil
-    }
-}
-
-/// The CPU time this process has used so far (user and system), in seconds.
 func processCPUSeconds() -> Double {
     var usage = rusage()
     getrusage(RUSAGE_SELF, &usage)

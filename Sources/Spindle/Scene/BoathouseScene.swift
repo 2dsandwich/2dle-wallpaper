@@ -159,8 +159,8 @@ enum BoathouseScene {
         lantern.simdPosition = SIMD3(0.60, 0, -0.25)
         let drink = Drinks.pick([
             // (Always the speckled blue enamel: the white one read as a plain mug in the wide frames.)
-            { AlpineScene.enamelMug(1, tea: false) },
-            { AlpineScene.enamelMug(1, tea: true) },
+            { enamelMug(1, tea: false) },
+            { enamelMug(1, tea: true) },
         ])
         drink.simdPosition = SIMD3(0.27, 0, 0.27)
         let guide = fieldGuide()
@@ -551,5 +551,94 @@ enum BoathouseScene {
                 let at = CGPoint(x: 1.45 * scale, y: 0.70 * scale)
                 ctx.drawRadialGradient(scorch, startCenter: at, startRadius: 0, endCenter: at, endRadius: 0.07 * scale, options: [])
             }, radius: 1.2)
+    }
+
+    /// An enamel camp mug of black coffee: white with a navy rim (or speckled blue with a white one), chipped at the rim
+    /// and the foot where it has been knocked about, the black iron showing through, stained inside.
+    static func enamelMug(_ kind: Int, tea: Bool) -> SCNNode {
+        let cup = Props.mug(rgb(0.92, 0.91, 0.87), design: 0, facing: 140, steam: 0.085, latte: 0, coaster: 3)
+        if tea {
+            // (Tea: the same mug, the drink clear amber-brown instead of black.)
+            cup.enumerateHierarchy { node, _ in
+                if node.name?.hasPrefix("liquid.") == true, let top = node.geometry?.firstMaterial {
+                    top.multiply.contents = rgb(1.0, 0.62, 0.30)
+                }
+            }
+        }
+        cup.simdEulerAngles = SIMD3(0, deg(140), 0)
+        // (What is in the mug is nearly a mirror, as a drink is. The lamp stands behind it and a little above, 11 degrees off
+        // the mirror's direction from the lens: at the drinks' usual 0.34 (`Drinks.softenSurface`) its reflection spread over
+        // the whole surface, a flat white disc at dusk; this smooth, it falls off the surface and the coffee is dark, with the
+        // room in it. Given as a colour, which that rule leaves alone: here there is no square of light to be mirrored.)
+        cup.enumerateHierarchy { node, _ in
+            if node.name?.hasPrefix("liquid.") == true, let top = node.geometry?.firstMaterial {
+                top.roughness.contents = NSColor(white: 0.09, alpha: 1)
+                // (Half of what it mirrors: the room's bright picture showed in it as a white band.)
+                top.multiply.contents = tea ? rgb(0.55, 0.34, 0.17) : rgb(0.5, 0.5, 0.5)
+            }
+        }
+        let enamel = Mat.pbr(.white, roughness: 0.22)
+        enamel.diffuse.contents = Mat.cached("alpine.enamel.\(kind)") {
+            Tex.draw(width: 1024, height: 512) { ctx, rect in
+                // (The wall's picture runs from the middle of the foot (top of the picture) out, up the side, over the
+                // rim and down the inside (bottom): by length, the outside from 0.31 to 0.68 down it, the rim to 0.71.)
+                func row(_ v: CGFloat) -> CGFloat { (1 - v) * 512 }
+                let white = Tex.rgb(0.90, 0.89, 0.85)
+                let navy = Tex.rgb(0.10, 0.14, 0.26)
+                let blue = Tex.rgb(0.16, 0.24, 0.42)
+                var rng = SeededRandom(seed: 761 &+ UInt64(kind))
+                ctx.setFillColor(kind == 0 ? white : blue)
+                ctx.fill(rect)
+                if kind == 1 {
+                    // Speckleware: the white flecks of the second coat.
+                    for _ in 0..<5000 {
+                        let r = rng.range(0.5, 2.0)
+                        ctx.setFillColor(Tex.rgb(0.86, 0.87, 0.88, rng.range(0.4, 0.9)))
+                        ctx.fillEllipse(
+                            in: CGRect(x: rng.range(0, 1024), y: rng.range(0, 512), width: r * 2, height: r * 2))
+                    }
+                }
+                // The rim band, and the inside a plain white for the speckled one.
+                ctx.setFillColor(kind == 0 ? navy : white)
+                ctx.fill(CGRect(x: 0, y: row(0.735), width: 1024, height: row(0.655) - row(0.735)))
+                if kind == 1 {
+                    ctx.setFillColor(white)
+                    ctx.fill(CGRect(x: 0, y: 0, width: 1024, height: row(0.735)))
+                }
+                // Chips: black iron in the middle, the coats showing as rings round it; most at the rim and the foot.
+                for _ in 0..<38 {
+                    let atRim = rng.unit() < 0.65
+                    let v = atRim ? rng.range(0.64, 0.73) : rng.range(0.28, 0.34)
+                    let x = rng.range(0, 1024)
+                    let y = row(CGFloat(v))
+                    let r = rng.range(2, 9)
+                    ctx.setFillColor(Tex.rgb(0.55, 0.56, 0.58, 0.6))
+                    ctx.fillEllipse(in: CGRect(x: x - r * 1.3, y: y - r, width: r * 2.6, height: r * 2))
+                    ctx.setFillColor(Tex.rgb(0.07, 0.065, 0.06))
+                    ctx.fillEllipse(in: CGRect(x: x - r, y: y - r * 0.75, width: r * 2, height: r * 1.5))
+                }
+                // Coffee's stain inside, a tidemark where it stood.
+                ctx.setFillColor(Tex.rgb(0.42, 0.28, 0.16, 0.45))
+                ctx.fill(CGRect(x: 0, y: 0, width: 1024, height: row(0.86)))
+                ctx.setFillColor(Tex.rgb(0.36, 0.22, 0.12, 0.35))
+                ctx.fill(CGRect(x: 0, y: row(0.82), width: 1024, height: 5))
+                // Dull scuffs where it has been set down and slid.
+                for _ in 0..<160 {
+                    ctx.setFillColor(Tex.gray(rng.unit() < 0.5 ? 0.2 : 0.95, rng.range(0.04, 0.12)))
+                    ctx.fill(
+                        CGRect(
+                            x: rng.range(0, 1024), y: row(CGFloat(rng.range(0.30, 0.66))), width: rng.range(6, 40),
+                            height: rng.range(1, 2)))
+                }
+            }
+        }
+        enamel.diffuse.wrapS = .repeat
+        // (The mug's first piece is its coaster; the cup holds the wall first, then the lining.)
+        if let body = cup.childNodes.first(where: { $0.name != "coaster" && $0.childNodes.count >= 2 }) {
+            body.childNodes[0].geometry?.firstMaterial = enamel
+            let lining = Mat.pbr(kind == 0 ? rgb(0.86, 0.84, 0.80) : rgb(0.84, 0.83, 0.80), roughness: 0.24)
+            body.childNodes[1].geometry?.firstMaterial = lining
+        }
+        return cup
     }
 }

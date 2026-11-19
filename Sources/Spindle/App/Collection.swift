@@ -184,32 +184,7 @@ final class Collection: ObservableObject {
     @Published private(set) var unlocked: Set<RecordStyle> = [.black]
     /// Unlocked since the collection was last looked at.
     @Published private(set) var fresh: Set<RecordStyle> = []
-    private var screenSaverStyle: RecordStyle?
     private var deadwaxUnlockLabels: [RecordStyle: String] = [:]
-
-    func configureScreenSaver(style: RecordStyle, unlocked: Set<RecordStyle>, unlockLabels: [String: String]? = nil) {
-        let saverUnlocked = unlocked.union([.black, style])
-        historyStore.disablePersistence()
-        self.unlocked = saverUnlocked
-        lock.lock()
-        screenSaverStyle = style
-        var labels: [RecordStyle: String] = [:]
-        for candidate in RecordStyle.allCases {
-            if candidate == .black {
-                labels[candidate] = "UNL START"
-            } else if saverUnlocked.contains(candidate) {
-                let cached = deadwaxUnlockLabels[candidate]
-                labels[candidate] =
-                    unlockLabels?[candidate.rawValue]
-                    ?? (cached == "LOCKED" ? nil : cached)
-                    ?? deadwaxLabel(for: nil)
-            } else {
-                labels[candidate] = "LOCKED"
-            }
-        }
-        deadwaxUnlockLabels = labels
-        lock.unlock()
-    }
 
     private let defaults: UserDefaults
     private let now: () -> Date
@@ -340,7 +315,6 @@ final class Collection: ObservableObject {
         }
         lock.lock()
         defer { lock.unlock() }
-        if let screenSaverStyle { return screenSaverStyle }
         if choice.shuffle, !choice.pool.isEmpty {
             // One style per album per launch, so a record does not change while it is out.
             return choice.pool[Int((stableHash(albumID) &+ shuffleSalt) % UInt64(choice.pool.count))]
@@ -387,12 +361,7 @@ final class Collection: ObservableObject {
         }
     }
 
-    /// A unit counted in `progress`, in the language in use (the English is the key).
-    private static func unit(_ english: String) -> String {
-        guard Language.inJapanese else { return english }
-        return ["albums": "枚", "tracks": "曲", "decks": "台", "scenes": "シーン", "nights": "夜", "days": "日"][english]
-            ?? english
-    }
+    private static func unit(_ english: String) -> String { english }
 
     // MARK: Events (main thread)
 

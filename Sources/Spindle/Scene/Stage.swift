@@ -13,7 +13,6 @@ final class Stage {
 
     /// How far back the camera aims. (Fixed: the framing is the same in every room.)
     static let aimZ: Float = -0.25
-    static let wallZ: Float = -0.30  // (clear of every dust cover when it stands open: they reach 26 cm back)
     static let referenceAspect: Float = 1.54
 
     /// This stage's number, given before anything of it is made (see `Keeping`: first, so that whatever is asked for
@@ -234,19 +233,12 @@ final class Stage {
     var overlayNode: SCNNode?
     lazy var standDesign: Int =
         ProcessInfo.processInfo.environment["SPINDLE_STAND"].flatMap { Int($0) }  // for test renders
-        ?? (preset == .goldenNook || preset == .loft
-            ? 0
-            // (The Café: the walnut easel with its rods, a stand you can see holding the cover. The small folded sheet read
-            // as a black clip with the cover floating over it.)
-            : preset == .afterHours
-                ? 2 : Int((stableHash(preset.rawValue) % 83 + Stage.standShuffle) % UInt64(Props.standDesignCount)))  // (the Seaside: the grooved oak one with a brass lip)
+        ?? Int((stableHash(preset.rawValue) % 83 + Stage.standShuffle) % UInt64(Props.standDesignCount))
     var disc = 0
     var candleFlame: SCNNode?
     var candleLight: SCNLight?
-    /// How much light the candle gives (its flicker is laid over this). Only the Night Desk's lights the desk round it.
+    /// How much light the candle gives (its flicker is laid over this).
     var candleStrength: CGFloat = 0.05
-    /// Where the Night Desk's candle stands (x, z), which its key light comes from the side of.
-    var nightKeyFrom = SIMD2<Float>(-0.49, 0.27)
 
     var previewWearLevel: Double?
     var passivePresentation = false

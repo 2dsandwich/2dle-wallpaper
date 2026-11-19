@@ -510,51 +510,6 @@ enum Props {
 
     // MARK: Framed print
 
-    /// Frame hanging on the wall; origin at the centre of its back face.
-    static func framedPrint(
-        art: CGImage?, width: Float, height: Float, backlit: Bool,
-        bar: Float = 0.017, depth: Float = 0.022, matBorder: Float = 0.048,
-        woodTint: NSColor = rgb(0.95, 0.80, 0.66), matTint: NSColor = rgb(0.90, 0.87, 0.79)
-    ) -> SCNNode {
-        let node = SCNNode()
-        let wood = Mat.scanned("wood_table_001", scale: SIMD2(0.08, 1.2), tint: woodTint)
-        for (w, h, x, y) in [
-            (width, bar, Float(0), (height - bar) / 2), (width, bar, 0, -(height - bar) / 2),
-            (bar, height - 2 * bar, (width - bar) / 2, 0), (bar, height - 2 * bar, -(width - bar) / 2, 0),
-        ] {
-            let geometry = SCNBox(width: CGFloat(w), height: CGFloat(h), length: CGFloat(depth), chamferRadius: 0.0015)
-            let piece = SCNNode(geometry, material: w > h ? wood : rotated(wood))
-            piece.at(x, y, depth / 2).adding(to: node)
-        }
-        let matBoard = SCNNode(
-            SCNPlane(width: CGFloat(width - 2 * bar), height: CGFloat(height - 2 * bar)),
-            material: Mat.pbr(matTint, roughness: 0.85))
-        matBoard.at(0, 0, depth * 0.45).adding(to: node)
-        let artW = width - 2 * (bar + matBorder)
-        let artH = height - 2 * (bar + matBorder)
-        if let art {
-            let picture = SCNNode(
-                SCNPlane(width: CGFloat(artW), height: CGFloat(artH)), material: Mat.print(art, roughness: 0.8))
-            picture.at(0, 0, depth * 0.45 + 0.0008).adding(to: node)
-            // Thin shadow line where the mat's window bevel meets the print.
-            let bevel = SCNNode(
-                SCNPlane(width: CGFloat(artW + 0.004), height: CGFloat(artH + 0.004)),
-                material: Mat.pbr(rgb(0.55, 0.52, 0.46), roughness: 0.9))
-            bevel.at(0, 0, depth * 0.45 + 0.0004).adding(to: node)
-        }
-        if backlit {
-            let halo = Tex.glow(aspect: CGFloat(width / height))
-            let material = Mat.decal(halo, additive: true)
-            material.multiply.contents = rgb(1.0, 0.52, 0.22)
-            let size = CGFloat(width / 0.56)
-            let glow = SCNNode(SCNPlane(width: size, height: size), material: material)
-            glow.at(0, 0, 0.001).adding(to: node)
-            glow.castsShadow = false
-            glow.renderingOrder = 2
-        }
-        return node
-    }
-
     private static func rotated(_ material: SCNMaterial) -> SCNMaterial {
         let copy = material.copy() as! SCNMaterial
         for property in [copy.diffuse, copy.normal, copy.roughness] {

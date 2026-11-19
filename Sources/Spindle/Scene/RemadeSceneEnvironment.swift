@@ -10,9 +10,6 @@ enum SceneEvents {
     static var sip: (() -> Void)?
     /// The empty cup has just been thrown away, out of the picture.
     static var cupThrown: (() -> Void)?
-    /// A car has set off along the New York Loft's street: which of its passes (0 to 3), where it will be along the
-    /// street every so many seconds until it has gone, and how many seconds that is. (Said on the render thread.)
-    static var carPasses: ((Int, [Float], Float) -> Void)?
 }
 
 /// An authored place around the unchanged record handling area. Geometry is in metres;
@@ -180,10 +177,8 @@ struct RemadeSceneEnvironment {
 }
 
 extension RemadeSceneEnvironment.Light {
-    /// The middle of the cover on its stand in every room scene (the stage's `standOrigin`, the sleeve leant back on it),
-    /// and the top of the pile (`stackOrigin`).
+    /// The middle of the cover on its stand in every room scene (the stage's `standOrigin`, the sleeve leant back on it).
     static let standCover = SIMD3<Float>(-0.42, 0.17, 0.05)
-    static let pileTop = SIMD3<Float>(0.475, 0.03, 0.055)
 
     /// A lamp's light carried on to the covers (owner, 2026-10-18: "make sure that the album covers are visible"): a soft
     /// spot from the lamp's own place, in its colour, aimed at the cover on its stand (or the pile), narrow, its edge a

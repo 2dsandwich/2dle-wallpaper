@@ -364,7 +364,7 @@ final class SpotifyMonitor {
         everyone.cap(300, keeping: model.track?.id)
         // (Kept for the session, but not without end.)
         if everyone.count > 500 { everyone.removeAll() }
-        guard Privacy.lookups, trackID.hasPrefix("spotify:track:"),
+        guard trackID.hasPrefix("spotify:track:"),
             let url = URL(string: "https://open.spotify.com/embed/track/" + trackID.dropFirst("spotify:track:".count))
         else { return "" }
         everyone[trackID] = ""
@@ -393,7 +393,7 @@ final class SpotifyMonitor {
     }
 
     private func lookUpArtwork(trackID: String) {
-        guard Privacy.lookups, trackID.hasPrefix("spotify:track:") || trackID.hasPrefix("spotify:episode:"),
+        guard trackID.hasPrefix("spotify:track:") || trackID.hasPrefix("spotify:episode:"),
             lookups[trackID] == nil,
             var components = URLComponents(string: "https://open.spotify.com/oembed")
         else { return }

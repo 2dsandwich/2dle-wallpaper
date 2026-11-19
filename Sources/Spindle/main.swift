@@ -1,16 +1,9 @@
 import AppKit
 
-// Started by a browser as our extension's native messaging host (see `NativeHost.swift`): that, and nothing else.
-if NativeHost.wanted(CommandLine.arguments) {
-    exit(NativeHost.run())
-}
 // (Asked for help, a bare build says where the checks are and stops: it used to start the whole app, wallpaper and all.)
 if CommandLine.arguments.contains("--help") || CommandLine.arguments.contains("-h") {
     print("2dle: the app starts with no arguments. Off-screen checks are `--snapshot <file> …`: see AGENTS.md, \"Build, run, check\".")
     exit(0)
-}
-if CommandLine.arguments.contains("--bridge-listen") {
-    exit(BridgeListenTest.run(CommandLine.arguments))
 }
 if CommandLine.arguments.contains("--snapshot") {
     exit(SnapshotTool.run(CommandLine.arguments))
@@ -44,8 +37,6 @@ func appMenu() -> NSMenu {
     menu(
         "2dle",
         [
-            item(L("Settings…", "設定…"), #selector(AppDelegate.showSettings), ","),
-            .separator(),
             item(L("Hide 2dle", "2dleを隠す"), #selector(NSApplication.hide(_:)), "h"),
             item(
                 L("Hide Others", "ほかを隠す"), #selector(NSApplication.hideOtherApplications(_:)), "h", [.command, .option]),
@@ -73,8 +64,4 @@ func appMenu() -> NSMenu {
     return bar
 }
 app.mainMenu = appMenu()
-// (A change of language: the menu bar is made again in the new one, at once.)
-NotificationCenter.default.addObserver(forName: Settings.languageChanged, object: nil, queue: .main) { _ in
-    app.mainMenu = appMenu()
-}
 app.run()

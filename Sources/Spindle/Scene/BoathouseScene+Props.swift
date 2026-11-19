@@ -440,12 +440,6 @@ extension BoathouseScene {
         }
     }
 
-    /// `smoothstep` for pictures drawn in CoreGraphics' numbers.
-    static func smoothstepCG(_ e0: CGFloat, _ e1: CGFloat, _ x: CGFloat) -> CGFloat {
-        let t = min(max((x - e0) / (e1 - e0), 0), 1)
-        return t * t * (3 - 2 * t)
-    }
-
     /// The strips of the hull, along its length (across the picture): red and white cedar, the real grain of a scanned
     /// veneer under each (a slice of it at its own place), every strip its own width and shade from straw to russet but
     /// none far from its neighbours, the glue lines faint, the varnish worn and weathered in broad soft patches, a

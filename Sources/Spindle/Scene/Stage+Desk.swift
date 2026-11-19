@@ -190,15 +190,6 @@ extension Stage {
     /// Use, on everything that has been used: the desk ringed where cups stood; and on whatever stands on it, the prints and fine scratches of
     /// being handled. (Each scene's desk is worn its own way: the same marks are laid differently in every one.)
     func wearIn() {
-        // (The Garage's bench has its own marks, oil and paint along the grain: the shared cup rings on it read as a
-        // crisp drawn circle by the wrench.)
-        if preset == .garage {
-            for child in world.childNodes
-            where child !== rig.root && child !== deskClock?.node && child.light == nil {
-                Wear.apply(to: child, amount: 0.55)
-            }
-            return
-        }
         let marks = Mat.pbr(.white, roughness: 0.62)
         marks.diffuse.contents = Mat.cached("desk.wear.5") { Self.deskWear() }
         marks.transparencyMode = .aOne
@@ -210,7 +201,7 @@ extension Stage {
         marks.diffuse.wrapS = .repeat
         marks.diffuse.wrapT = .repeat
         if preset.isTopDown {
-            // (From straight above, on the Architect's Desk's dark linoleum, the rings drawn as a lit sheet of their own
+            // (From straight above, on the dark linoleum, the rings drawn as a lit sheet of their own
             // read as pale grey discs with stepped rims: the sheet's own sheen, flat over the lino's relief, and stains
             // too faint for eight bits of alpha. Here they are multiplied over the desk, so they can only darken it.)
             marks.lightingModel = .constant
@@ -219,14 +210,10 @@ extension Stage {
             marks.diffuse.contents = Mat.cached("desk.wear.multiply.1") { Self.deskWear(onWhite: true) }
             marks.diffuse.mipFilter = .linear
         }
-        // (The Poolside's table ends a little short of where the sheet would: past its back edge the rings would hang over
-        // the pool. The marks are laid on the table alone, at the same scale.)
-        // (And the Boathouse's low table at the dock's end: past its edges the rings would hang over the boards.)
+        // (The Boathouse's low table at the dock's end: past its edges the rings would hang over the boards.)
         let leaf =
-            preset == .loft
-            ? SIMD3<Float>(StahlScene.wearWide, StahlScene.tableDeep, StahlScene.tableMidZ)
-            : (preset == .turntable ? SIMD3<Float>(1.40, 0.80, 0.06) : SIMD3<Float>(2.6, 1.5, preset.isTopDown ? -0.05 : 0.1))
-        if preset == .loft || preset == .turntable {
+            preset == .turntable ? SIMD3<Float>(1.40, 0.80, 0.06) : SIMD3<Float>(2.6, 1.5, preset.isTopDown ? -0.05 : 0.1)
+        if preset == .turntable {
             marks.diffuse.contentsTransform = SCNMatrix4Translate(
                 SCNMatrix4MakeScale(CGFloat(leaf.x / 2.6), CGFloat(leaf.y / 1.5), 1), CGFloat(shift), CGFloat(shift * 0.6), 0)
         }

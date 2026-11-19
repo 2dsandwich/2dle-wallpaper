@@ -2,11 +2,10 @@ import SceneKit
 import simd
 
 /// A real enclosure independent of platter rotation and the record transfer timeline.
-/// Hinged covers pivot at the modeled hinge; removable covers lift out of the work area.
+/// Hinged covers pivot at the modeled hinge.
 final class TurntableCover {
     enum Motion {
         case hinge(angle: Float)
-        case liftOff(height: Float)
     }
 
     let node: SCNNode
@@ -103,11 +102,6 @@ final class TurntableCover {
             node.isHidden = false
             node.simdPosition = closedPosition
             node.simdOrientation = simd_quatf(angle: -angle * p, axis: SIMD3(1, 0, 0)) * closedOrientation
-        case .liftOff(let height):
-            // A removed one-piece cover is stored outside the scene once lifted clear.
-            node.isHidden = p > 0.999
-            node.simdPosition = closedPosition + SIMD3(0, height * p, 0)
-            node.simdOrientation = closedOrientation
         }
         stateLock.lock()
         fraction = p

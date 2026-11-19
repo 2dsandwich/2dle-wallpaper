@@ -57,50 +57,6 @@ struct PanelFace: ViewModifier {
     }
 }
 
-/// A round button of glass with a symbol on it (or a few words beside it, while it has something to say).
-struct RoundButton: View {
-    var symbol: String
-    var words: String? = nil
-    var tint: Color? = nil
-    var dot: Color? = nil
-    var help: String
-    var action: () -> Void
-    @State private var hovering = false
-
-    var body: some View {
-        Button(action: action) {
-            let face = HStack(spacing: 5) {
-                Image(systemName: symbol).font(.system(size: 12, weight: .semibold))
-                if let words {
-                    Text(words).font(.system(size: 11.5, weight: .semibold)).monospacedDigit().lineLimit(1).fixedSize()
-                }
-            }
-            .foregroundStyle(Ink.primary)
-            .padding(.horizontal, words == nil ? 0 : 11)
-            .frame(minWidth: 30, minHeight: 30)
-            .contentShape(Capsule())
-            if #available(macOS 26.0, *), LiquidGlass.on {
-                face.glassEffect(
-                    tint.map { .regular.tint($0.opacity(0.8)).interactive() } ?? .regular.interactive(), in: .capsule)
-            } else {
-                face.background(Capsule().fill(tint ?? Color.white.opacity(hovering ? 0.16 : 0.10)))
-                    .overlay(Capsule().strokeBorder(Color.white.opacity(0.12), lineWidth: 0.5))
-            }
-        }
-        .buttonStyle(Tactile(nil))
-        .overlay(alignment: .topTrailing) {
-            if let dot {
-                Circle().fill(dot).frame(width: 8, height: 8).overlay(
-                    Circle().stroke(Color.black.opacity(0.5), lineWidth: 1)
-                ).offset(x: 1, y: -1)
-            }
-        }
-        .onHover { hovering = $0 }
-        .accessibilityLabel(help)
-        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: words)
-    }
-}
-
 /// A scrolled list that fades into its foot only while there is more of it hidden below: not when it all fits, nor
 /// once it has been scrolled to its end (owner, 2026-10-17). No scroll bar.
 struct PeekScroll<Content: View>: View {
@@ -148,24 +104,6 @@ struct PeekScroll<Content: View>: View {
     }
 }
 
-/// How tall the inbox card's page is.
-struct InboxMeasure: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
-}
-
-/// A parcel or a clock's box opened from the menu bar's inbox, for the settings panel to unbox (`SettingsView`, on
-/// `Inbox.wanted` or as it appears).
-extension Inbox {
-    static var opening: Item?
-}
-
-/// How tall the friends' card's page is.
-struct FriendsMeasure: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
-}
-
 /// Where each tile and the ⋯ button has its place in the panel, for the piece that grows from there.
 struct MorphSlots: PreferenceKey {
     static var defaultValue: [MenuBarPick: Anchor<CGRect>] = [:]
@@ -188,26 +126,23 @@ struct MorphGlass: ViewModifier {
     }
 }
 
-/// What is on now, under its name, over its picture: a tile, and the head of the card it opens out into.
+/// What is on now, under its name, over its picture: the tile.
 struct TileFace<Picture: View>: View {
     var title: String
     var value: String
-    var dim = false
     var height: CGFloat = 84
     @ViewBuilder var picture: () -> Picture
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
             Color(white: 0.07)
-            picture().opacity(dim ? 0.45 : 1)
+            picture()
             LinearGradient(
                 stops: [.init(color: .clear, location: 0.3), .init(color: .black.opacity(0.82), location: 1)],
                 startPoint: .top, endPoint: .bottom)
             VStack(alignment: .leading, spacing: 0) {
                 Text(title).font(.system(size: 10, weight: .semibold)).foregroundStyle(Ink.secondary).lineLimit(1)
-                Text(value).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(
-                    dim ? Ink.secondary : Ink.primary
-                ).lineLimit(1)
+                Text(value).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.primary).lineLimit(1)
             }
             .padding(.horizontal, 10).padding(.bottom, 8)
         }
@@ -216,244 +151,48 @@ struct TileFace<Picture: View>: View {
     }
 }
 
-/// One choice in an opened-out card: its picture (a still, or a record), its name, and whether it is the one on or
-/// still to be earned.
+/// One choice in an opened-out card: its picture, its name, and whether it is the one on.
 struct Choice: View {
     var title: String
     var image: NSImage?
-    var round = false
     var chosen = false
-    var locked = false
-    var note: String? = nil
     var accent: Color
-    /// A record: the picture that flies out to be held up (see `MenuBarView.recordFocus`), and whether it is out.
-    var space: Namespace.ID? = nil
-    var heroID = ""
-    var lifted = false
     var action: () -> Void
     @State private var hovering = false
-    /// Fixed heights for the name and the line under a record, so that the card's height can be worked out.
+    /// A fixed height for the name, so that the card's height can be worked out.
     static let titleHeight: CGFloat = 14
-    static let noteHeight: CGFloat = 12
-
-    @ViewBuilder private func hero<V: View>(_ view: V) -> some View {
-        if let space { view.matchedGeometryEffect(id: heroID, in: space) } else { view }
-    }
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
         Button(action: action) {
             VStack(spacing: 5) {
                 ZStack {
-                    if round {
-                        Color.clear
-                        if let image, !lifted {
-                            hero(
-                                Image(nsImage: image).resizable().interpolation(.high).scaledToFit().clipShape(Circle())
-                            )
-                            .shadow(color: .black.opacity(0.5), radius: 3, y: 1)
-                            .padding(4)
-                        }
-                    } else {
-                        Color(white: 0.07)
-                        if let image { Image(nsImage: image).resizable().interpolation(.high).scaledToFill() }
-                    }
+                    Color(white: 0.07)
+                    if let image { Image(nsImage: image).resizable().interpolation(.high).scaledToFill() }
                 }
-                .aspectRatio(round ? 1 : 1.6, contentMode: .fit)
+                .aspectRatio(1.6, contentMode: .fit)
                 .clipShape(shape)
                 .overlay {
-                    // (A record is ringed round, a picture framed.)
-                    if round {
-                        Circle().strokeBorder(chosen ? accent : Color.white.opacity(hovering ? 0.28 : 0), lineWidth: 2)
-                            .padding(1)
-                    } else {
-                        shape.strokeBorder(
-                            chosen ? accent : Color.white.opacity(hovering && !locked ? 0.28 : 0.08),
-                            lineWidth: chosen ? 2 : 0.5)
-                    }
+                    shape.strokeBorder(
+                        chosen ? accent : Color.white.opacity(hovering ? 0.28 : 0.08), lineWidth: chosen ? 2 : 0.5)
                 }
                 .overlay(alignment: .topTrailing) {
                     if chosen {
                         Image(systemName: "checkmark").font(.system(size: 8.5, weight: .heavy)).foregroundStyle(.white)
                             .frame(width: 17, height: 17).background(Circle().fill(accent)).padding(5)
-                    } else if locked {
-                        Image(systemName: "lock.fill").font(.system(size: 8.5, weight: .bold)).foregroundStyle(
-                            Ink.primary
-                        )
-                        .frame(width: 17, height: 17).background(Circle().fill(Color.black.opacity(0.55))).padding(5)
                     }
                 }
-                .opacity(locked ? 0.42 : 1)
-                VStack(spacing: 0) {
-                    Text(title).font(.system(size: 11, weight: chosen ? .semibold : .medium)).foregroundStyle(
-                        locked ? Ink.secondary : Ink.primary
-                    ).lineLimit(1)
-                        .frame(height: Self.titleHeight)
-                    if round {
-                        Text(note ?? " ").font(.system(size: 9.5, weight: .medium).monospacedDigit()).foregroundStyle(
-                            Ink.tertiary
-                        ).lineLimit(1)
-                            .frame(height: Self.noteHeight)
-                    }
-                }
+                Text(title).font(.system(size: 11, weight: chosen ? .semibold : .medium)).foregroundStyle(Ink.primary)
+                    .lineLimit(1)
+                    .frame(height: Self.titleHeight)
             }
-            .scaleEffect(hovering && !locked ? 1.03 : 1)
+            .scaleEffect(hovering ? 1.03 : 1)
             .contentShape(Rectangle())
         }
         .buttonStyle(Tactile(nil))
-        // (A record still to earn can be held up all the same, to see how far along it is; a picture cannot be chosen.)
-        .disabled(locked && !round)
         .onHover { inside in withAnimation(.easeOut(duration: 0.14)) { hovering = inside } }
         .accessibilityLabel(title)
         .accessibilityAddTraits(chosen ? [.isSelected] : [])
-    }
-}
-
-/// One friend: their picture (or the first letter), the name with the badges small under it, and what they are playing,
-/// live. Lighter under the pointer; `leads`, with the chevron of a row that opens a page.
-struct FriendLine: View {
-    let friend: AccountStore.Friend
-    let picture: NSImage?
-    let nameWidth: CGFloat
-    let corner: CGFloat
-    var leads = false
-    @State private var hovering = false
-
-    var body: some View {
-        HStack(spacing: 9) {
-            Group {
-                if let picture {
-                    Image(nsImage: picture).resizable().interpolation(.high).scaledToFill().frame(width: 28, height: 28)
-                        .clipShape(Circle())
-                } else {
-                    Text(String(friend.shownName.first ?? "?").uppercased()).font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Ink.primary)
-                        .frame(width: 28, height: 28).background(Circle().fill(Color.white.opacity(0.12)))
-                }
-            }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(friend.shownName).font(.system(size: 13, weight: .medium)).foregroundStyle(Ink.primary).lineLimit(
-                    1
-                ).truncationMode(.tail)
-                let marks = friend.badges.compactMap(Badge.init(rawValue:))
-                // (The marks only: nothing comes up under the pointer in the menu bar.)
-                if !marks.isEmpty {
-                    HStack(spacing: 3) {
-                        ForEach(marks) {
-                            Image(systemName: $0.symbol).font(.system(size: 9.5, weight: .semibold)).foregroundStyle(
-                                $0.colour
-                            ).frame(width: 14, height: 14)
-                        }
-                    }
-                }
-            }
-            .frame(width: nameWidth, alignment: .leading)
-            HStack(spacing: 0) {
-                if let playing = friend.playing { Listening(playing: playing, size: 11) }
-                Spacer(minLength: 0)
-            }
-            .frame(maxWidth: .infinity)
-            if leads {
-                Image(systemName: "chevron.right").font(.system(size: 10.5, weight: .semibold)).foregroundStyle(
-                    Ink.secondary)
-            }
-        }
-        .contentShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
-        .padding(.horizontal, 9).frame(height: 46)
-        .background(
-            RoundedRectangle(cornerRadius: corner, style: .continuous).fill(Color.white.opacity(hovering ? 0.11 : 0.06))
-        )
-        .onHover { inside in withAnimation(.easeOut(duration: 0.14)) { hovering = inside } }
-    }
-}
-
-/// The profile card's `CodeTiles` (a code, a character to a tile; clicked, copied, and says so), without its sound.
-struct QuietCodeTiles: View {
-    let code: String
-    var size: CGFloat = 46
-    var cursor: Int? = nil
-    var copies = false
-    @State private var copied = false
-
-    var body: some View {
-        let letters = Array(code.padding(toLength: 6, withPad: " ", startingAt: 0))
-        HStack(spacing: 7) {
-            ForEach(0..<6, id: \.self) { index in
-                Text(String(letters[index]))
-                    .font(.system(size: size * 0.56, weight: .medium, design: .rounded)).foregroundStyle(Ink.primary)
-                    .frame(width: size, height: size * 1.16)
-                    .background {
-                        if #available(macOS 26.0, *), LiquidGlass.on {
-                            Color.clear.glassEffect(.regular, in: .rect(cornerRadius: size * 0.28))
-                        } else {
-                            RoundedRectangle(cornerRadius: size * 0.28).fill(Color.white.opacity(0.10))
-                        }
-                    }
-                    .overlay(
-                        RoundedRectangle(cornerRadius: size * 0.28).stroke(
-                            Color.white.opacity(cursor == index || copied ? 0.75 : 0.16),
-                            lineWidth: cursor == index || copied ? 1.4 : 0.8))
-            }
-        }
-        .scaleEffect(copied ? 0.97 : 1)
-        .overlay {
-            if copied {
-                Text(L("Copied!", "コピーしました")).font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.primary)
-                    .padding(.horizontal, 14).frame(height: 30)
-                    .background(Capsule().fill(Color.black.opacity(0.82)))
-                    .overlay(Capsule().stroke(Color.white.opacity(0.25), lineWidth: 0.8))
-                    .transition(.scale(scale: 0.85).combined(with: .opacity))
-            }
-        }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            guard copies, !code.isEmpty else { return }
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(code, forType: .string)
-            withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) { copied = true }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.3) {
-                withAnimation(.easeOut(duration: 0.25)) { copied = false }
-            }
-        }
-    }
-}
-
-/// The profile card's `CodeField` (a code typed into the tiles, pasted with ⌘V or from a right click; sent once there
-/// are six; shaking its head when one is turned down), without its sound.
-struct QuietCodeField: View {
-    @Binding var code: String
-    var size: CGFloat = 46
-    var refused = 0
-    var busy = false
-    var submit: () -> Void
-    @FocusState private var typing: Bool
-
-    var body: some View {
-        ZStack {
-            TextField("", text: $code)
-                .textFieldStyle(.plain).focused($typing).opacity(0.02).frame(width: size * 6 + 35, height: size * 1.16)
-                .disabled(busy)
-                .onChange(of: code) { _, value in
-                    let kept = CodeField.code(in: value)
-                    if kept != value { code = kept } else if kept.count == 6 { submit() }
-                }
-                .onSubmit { if code.count == 6 { submit() } }
-            QuietCodeTiles(code: code, size: size, cursor: typing && !busy && code.count < 6 ? code.count : nil)
-                .allowsHitTesting(false)
-                .opacity(busy ? 0.5 : 1)
-        }
-        .contentShape(Rectangle())
-        .onTapGesture { typing = true }
-        .modifier(Shake(travel: CGFloat(refused)))
-        .animation(.linear(duration: 0.45), value: refused)
-        .onAppear { DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { typing = true } }
-        .contextMenu {
-            Button(L("Paste", "ペースト")) {
-                guard !busy, let pasted = NSPasteboard.general.string(forType: .string) else { return }
-                typing = true
-                code = CodeField.code(in: pasted)
-            }
-        }
     }
 }
 
@@ -484,14 +223,12 @@ struct CloseButton: View {
     }
 }
 
-/// One of the ⋯ card's three things to do: a pane of glass with a symbol and a word, plainly a button, lighter under
-/// the pointer and dimmer pressed. (`tint`: one that has something waiting, an update, takes the album's colour.)
+/// The ⋯ card's button: a pane of glass with a symbol and a word, plainly a button, lighter under
+/// the pointer and dimmer pressed.
 struct ActionTile: View {
     var symbol: String
     var title: String
     var corner: CGFloat
-    var busy = false
-    var tint: Color? = nil
     var action: () -> Void
     @State private var hovering = false
 
@@ -499,31 +236,22 @@ struct ActionTile: View {
         let shape = RoundedRectangle(cornerRadius: corner, style: .continuous)
         Button(action: action) {
             let face = VStack(spacing: 5) {
-                Group {
-                    if busy {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Image(systemName: symbol).font(.system(size: 15, weight: .semibold))
-                    }
-                }
-                .frame(height: 18)
+                Image(systemName: symbol).font(.system(size: 15, weight: .semibold))
+                    .frame(height: 18)
                 Text(title).font(.system(size: 11, weight: .medium)).lineLimit(1)
             }
             .foregroundStyle(Ink.primary)
             .frame(maxWidth: .infinity).frame(height: 58)
             .contentShape(shape)
             if #available(macOS 26.0, *), LiquidGlass.on {
-                face.glassEffect(
-                    tint.map { .regular.tint($0.opacity(0.75)).interactive() } ?? .regular.interactive(),
-                    in: .rect(cornerRadius: corner))
+                face.glassEffect(.regular.interactive(), in: .rect(cornerRadius: corner))
             } else {
-                face.background(shape.fill(tint ?? Color.white.opacity(hovering ? 0.16 : 0.09)))
+                face.background(shape.fill(Color.white.opacity(hovering ? 0.16 : 0.09)))
                     .overlay(shape.strokeBorder(Color.white.opacity(hovering ? 0.2 : 0.1), lineWidth: 0.5))
             }
         }
         .buttonStyle(Tactile(nil))
-        .disabled(busy)
-        .scaleEffect(hovering && !busy ? 1.03 : 1)
+        .scaleEffect(hovering ? 1.03 : 1)
         .onHover { inside in withAnimation(.easeOut(duration: 0.14)) { hovering = inside } }
         .accessibilityLabel(title)
     }

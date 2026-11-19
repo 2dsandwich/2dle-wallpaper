@@ -109,22 +109,6 @@ final class Settings: ObservableObject {
     }
     /// The panel's own little clicks and ticks (`MenuSound`).
     @Published var menuSounds: Bool { didSet { defaults.set(menuSounds, forKey: "menuSounds") } }
-    /// English or Japanese (`Language`). Changed, everything on screen is drawn again in it.
-    @Published var language: Language {
-        didSet {
-            defaults.set(language.rawValue, forKey: "language")
-            Language.current = language
-            NotificationCenter.default.post(name: Settings.languageChanged, object: nil)
-        }
-    }
-    static let languageChanged = Notification.Name("app.spindle.languageChanged")
-    /// A language chosen from one of its controls: the panel covers itself with its name on black, changes over underneath,
-    /// and uncovers (`SettingsView`), so that nobody sees everything being drawn again. (Owner, 2026-10-17.)
-    static let languageWanted = Notification.Name("app.spindle.languageWanted")
-    func choose(_ wanted: Language) {
-        guard wanted != language else { return }
-        NotificationCenter.default.post(name: Settings.languageWanted, object: wanted.rawValue)
-    }
     var turntableSoundLevel: TurntableSoundLevel {
         get { turntableSounds ? TurntableSoundLevel.nearest(to: turntableSoundVolume) : .off }
         set {
@@ -136,9 +120,6 @@ final class Settings: ObservableObject {
     @Published var filmGrain: FilmGrain { didSet { defaults.set(filmGrain.rawValue, forKey: "filmGrain.3") } }
     /// In the scenes lit by daylight, the sun stands where the hour of the day puts it.
     @Published var sunFollowsClock: Bool { didSet { defaults.set(sunFollowsClock, forKey: "sunFollowsClock") } }
-    /// The scenes copy the weather and the length of the day where the Mac is (see `LocalWeather`). On for a new listener
-    /// (macOS asks them first, and if it is told no, the switch goes back off).
-    @Published var localWeather: Bool { didSet { defaults.set(localWeather, forKey: "localWeather") } }
     /// After this many minutes with nothing played, the record goes back in its sleeve and the lid comes down (0: never).
     @Published var idleMinutes: Int {
         didSet {
@@ -206,7 +187,6 @@ final class Settings: ObservableObject {
         clockStyle = .flip
         sceneSoundLevel = TurntableSoundLevel(rawValue: defaults.string(forKey: "sceneSoundLevel") ?? "") ?? .normal
         menuSounds = defaults.object(forKey: "menuSounds") as? Bool ?? true
-        language = Language.current
         framing = Settings.framing(topDown: saved.isTopDown)
         transparentBackground = false
         desktopArtwork = defaults.bool(forKey: "desktopArtwork")
@@ -216,9 +196,8 @@ final class Settings: ObservableObject {
         DrawingQuality.current = savedQuality
         // (What a new listener starts with, as the owner set it out. Test renders keep to the old defaults, which they are
         // made with.)
-        // (Each scene keeps the one moment it was lit for: no clock-driven daylight, no local weather.)
+        // (Each scene keeps the one moment it was lit for: no clock-driven daylight.)
         sunFollowsClock = false
-        localWeather = false
         idleMinutes = defaults.object(forKey: "idleMinutes") as? Int ?? 5
         sleeveWear = defaults.object(forKey: "sleeveWear") as? Bool ?? true
         let worn = defaults.object(forKey: "turntableWear") as? Bool ?? true
