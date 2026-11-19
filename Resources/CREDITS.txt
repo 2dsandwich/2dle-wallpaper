@@ -1,0 +1,28 @@
+Third-party assets
+
+Poly Haven (polyhaven.com), CC0 1.0
+  Models: fern_02, garden_gloves_01, Lantern_01, magnifying_glass_01, painted_wooden_bench, planter_pot_clay,
+  potted_plant_02, round_spectacles, seeding_tray_01, shrub_04, tea_set_01, trowel_01, vintage_binocular,
+  watering_can_metal_01
+  Textures: brown_leather, brown_planks_03, concrete_wall_008, dark_wood, gravel_floor_02, leafy_grass, mossy_rock,
+  oak_veneer_01, red_brick_03, rock_boulder_dry, rough_linen, snow_02, tatami_mat, teak_veneer, walnut_veneer,
+  white_oak_veneer, wood_planks
+  HDRIs: fish_hoek_beach, lebombo, photo_studio_loft_hall
+
+ambientCG (ambientcg.com), CC0 1.0
+  Paper001, Scratches003, Smear002, Onyx007, LeafSet030
+
+Wikimedia Commons, CC0 1.0
+  "Drone view of ocean waves" by Caleb Jones (sea_far.jpg)
+  "Tranquil lake in autumn" by Ferdinand Stöhr (boathouse_pines.jpg)
+  "Tranquil autumn lake" by Khürt Williams (boathouse_maples.jpg)
+  "Organic confetti" (wind_sakura.png)
+
+Font
+  Comforter Brush by Robert Leuschke, SIL Open Font License 1.1 (fonts/OFL.txt)
+
+Sounds
+  Freesound (CC0 1.0) and Wikimedia Commons (public domain) recordings, edited. Except:
+  Needle down/up: InspectorJ, "Vinyl Record, On Off, C.wav", CC BY 4.0
+    https://freesound.org/people/InspectorJ/sounds/427933/
+    https://creativecommons.org/licenses/by/4.0/

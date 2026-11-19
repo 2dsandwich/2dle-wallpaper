@@ -1,0 +1,5 @@
+fern_02
+Source: Poly Haven, https://polyhaven.com/a/fern_02 (glTF, 1K textures)
+Licence: CC0 1.0 Universal (public domain), https://creativecommons.org/publicdomain/zero/1.0/
+Downloaded 2026-10-17 for the Winter Garden scene; files as published, MD5 checked against the Poly Haven API.
+Also fern_02_alpha_1k.jpg (the leaves' cut-out mask, from the asset's Alpha map), same source and licence.
